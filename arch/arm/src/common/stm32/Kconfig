@@ -70,6 +70,7 @@ config STM32_COMMON_FULL_FEATURED
 
 config STM32_COMMON_SRAM2_OPTIONS
 	bool
+	default y if ARCH_CHIP_STM32C552VE
 	default y if ARCH_CHIP_STM32L4
 	default y if ARCH_CHIP_STM32H5
 	default y if ARCH_CHIP_STM32L5

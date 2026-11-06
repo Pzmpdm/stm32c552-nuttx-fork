@@ -56,7 +56,7 @@
  * heap.  A family may also request parity initialization of SRAM2.
  */
 
-#ifdef CONFIG_STM32_SRAM2_INIT
+#if defined(CONFIG_STM32_SRAM2_INIT) && !defined(CONFIG_ARCH_CHIP_STM32C5)
 #  define SRAM2_START  STM32_SRAM2_BASE
 #  define SRAM2_END    (SRAM2_START + STM32_SRAM2_SIZE)
 #endif
@@ -154,7 +154,7 @@ void __start(void)
       *dest++ = *src++;
     }
 
-#ifdef CONFIG_STM32_SRAM2_INIT
+#if defined(CONFIG_STM32_SRAM2_INIT) && !defined(CONFIG_ARCH_CHIP_STM32C5)
   /* The SRAM2 region is parity checked, but upon power up, it will be in
    * a random state and probably invalid with respect to parity, potentially
    * generating faults if accessed.  If elected, write zeros to the memory

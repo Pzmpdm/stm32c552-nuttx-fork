@@ -28,6 +28,7 @@
 
 #include <arch/board/board.h>
 
+#include "arm_internal.h"
 #include "stm32_rcc.h"
 
 /****************************************************************************
@@ -42,6 +43,26 @@ static void stm32_configureclock(void)
   stm32_stdclockconfig();
 #endif
 }
+
+#ifdef CONFIG_STM32_SRAM2_INIT
+static void stm32_sram2init(void)
+{
+  volatile uint32_t *word = (volatile uint32_t *)STM32_SRAM2_BASE;
+  volatile uint32_t *end = word + STM32_SRAM2_SIZE / sizeof(*word);
+
+  /* Keep ECC at the option-byte setting.  Use aligned full-word writes to
+   * initialize its check bits without an implicit read of uninitialized RAM.
+   */
+
+  modifyreg32(STM32_RCC_AHB1ENR, 0, RCC_AHB1ENR_SRAM2EN);
+  (void)getreg32(STM32_RCC_AHB1ENR);
+
+  while (word < end)
+    {
+      *word++ = 0;
+    }
+}
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -75,6 +96,10 @@ void stm32_clockconfig(void)
   /* Enable peripheral clocking */
 
   stm32_rcc_enableperipherals();
+
+#ifdef CONFIG_STM32_SRAM2_INIT
+  stm32_sram2init();
+#endif
 }
 
 /****************************************************************************
