@@ -25,6 +25,9 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <stdint.h>
 #include <nuttx/board.h>
 #include <nuttx/debug.h>
 #include <nuttx/input/buttons.h>
@@ -34,16 +37,118 @@
 
 #include "board_common.h"
 
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+#  include "arm_internal.h"
+#  include "hardware/stm32_flash.h"
+#  include "hardware/stm32_rcc.h"
+#endif
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+#  define CLOCK_READY_TIMEOUT 240000
+#  define FLASH_CLOCK_MASK    (FLASH_ACR_LATENCY_MASK | \
+                               FLASH_ACR_WRHIGHFREQ_MASK)
+#  define FLASH_CLOCK_144MHZ  (FLASH_ACR_LATENCY_4 | FLASH_ACR_WRHIGHFREQ_2)
+#endif
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+static bool stm32_wait_clockreg(uintptr_t regaddr, uint32_t mask,
+                               uint32_t expected)
+{
+  unsigned int timeout;
+
+  for (timeout = CLOCK_READY_TIMEOUT; timeout > 0; timeout--)
+    {
+      if ((getreg32(regaddr) & mask) == expected)
+        {
+          return true;
+        }
+    }
+
+  return false;
+}
+
+static bool stm32_try_hse_psi(void)
+{
+  modifyreg32(STM32_RCC_CR1, RCC_CR1_HSEBYP | RCC_CR1_HSEEXT, RCC_CR1_HSEON);
+  if (!stm32_wait_clockreg(STM32_RCC_CR1, RCC_CR1_HSERDY, RCC_CR1_HSERDY))
+    {
+      return false;
+    }
+
+  modifyreg32(STM32_RCC_CR2,
+              RCC_CR2_PSIREFSRC_MASK | RCC_CR2_PSIREF_MASK |
+              RCC_CR2_PSIFREQ_MASK,
+              RCC_CR2_PSIREFSRC_HSE | RCC_CR2_PSIREF_8MHZ |
+              RCC_CR2_PSIFREQ_144MHZ);
+
+  modifyreg32(STM32_RCC_CR1, 0, RCC_CR1_PSISON);
+  if (!stm32_wait_clockreg(STM32_RCC_CR1, RCC_CR1_PSISRDY, RCC_CR1_PSISRDY))
+    {
+      return false;
+    }
+
+  modifyreg32(STM32_RCC_CFGR1, RCC_CFGR1_SW_MASK, RCC_CFGR1_SW_PSIS);
+  return stm32_wait_clockreg(STM32_RCC_CFGR1, RCC_CFGR1_SWS_MASK,
+                            RCC_CFGR1_SWS_PSIS);
+}
+
+static bool stm32_try_hsis(void)
+{
+  modifyreg32(STM32_RCC_CR1, 0, RCC_CR1_HSISON);
+  if (!stm32_wait_clockreg(STM32_RCC_CR1, RCC_CR1_HSISRDY, RCC_CR1_HSISRDY))
+    {
+      return false;
+    }
+
+  modifyreg32(STM32_RCC_CFGR1, RCC_CFGR1_SW_MASK, RCC_CFGR1_SW_HSIS);
+  if (!stm32_wait_clockreg(STM32_RCC_CFGR1, RCC_CFGR1_SWS_MASK,
+                           RCC_CFGR1_SWS_HSIS))
+    {
+      return false;
+    }
+
+  modifyreg32(STM32_RCC_CR1, RCC_CR1_PSISON | RCC_CR1_HSEON, 0);
+  return true;
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 void stm32_board_clockconfig(void)
 {
-  /* Start from a system reset.  HSIDIV3 already drives SYSCLK at 48 MHz,
-   * the bus prescalers are /1, and the reset FLASH latency is safe.
-   * The common C5 code enables the peripheral clocks after this hook.
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+  /* Confirm the Flash timings before switching from reset HSIDIV3. */
+
+  modifyreg32(STM32_FLASH_ACR, FLASH_CLOCK_MASK, FLASH_CLOCK_144MHZ);
+  if (stm32_wait_clockreg(STM32_FLASH_ACR, FLASH_CLOCK_MASK,
+                          FLASH_CLOCK_144MHZ) &&
+      (stm32_try_hse_psi() || stm32_try_hsis()))
+    {
+      return;
+    }
+
+  /* Neither 144 MHz path is safe.  Starting with the wrong rate would
+   * break both the console and the scheduler clock.
    */
+
+  for (; ; )
+    {
+      asm volatile ("wfi");
+    }
+#else
+  /* HSIDIV3 already drives SYSCLK at 48 MHz from reset. */
+
+#endif
 }
 
 void stm32_board_initialize(void)

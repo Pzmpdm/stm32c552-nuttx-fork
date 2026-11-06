@@ -1,0 +1,13 @@
+#
+# For a description of the syntax of this configuration file,
+# see kconfig-language.txt in the NuttX tools repository.
+#
+
+config STM32C552VET6_DEVKIT_HSE_CLOCK
+	bool "144 MHz system clock from the 8 MHz HSE crystal"
+	default n
+	depends on !PM
+	---help---
+		Use HSE as the 8 MHz reference for the 144 MHz PSI system clock.
+		Fall back to the 144 MHz internal HSIS clock if HSE or PSI fails
+		to start.  The default board clock is the 48 MHz reset clock.

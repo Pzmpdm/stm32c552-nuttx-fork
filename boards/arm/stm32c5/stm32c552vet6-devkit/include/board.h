@@ -33,13 +33,17 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* The 8 MHz HSE and 32.768 kHz LSE crystals are unused for NSH.
- * Use the 48 MHz HSIDIV3 system clock and the reset bus prescalers.
+/* Both clock profiles use the reset bus prescalers.  The optional HSE
+ * profile uses 144 MHz PSIS or HSIS.  The default uses 48 MHz HSIDIV3.
  */
 
 #define STM32_HSE_FREQUENCY          8000000ul
 #define STM32_LSE_FREQUENCY          32768ul
-#define STM32_SYSCLK_FREQUENCY       48000000ul
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+#  define STM32_SYSCLK_FREQUENCY     144000000ul
+#else
+#  define STM32_SYSCLK_FREQUENCY     48000000ul
+#endif
 #define STM32_HCLK_FREQUENCY         STM32_SYSCLK_FREQUENCY
 #define STM32_PCLK1_FREQUENCY        STM32_HCLK_FREQUENCY
 #define STM32_PCLK2_FREQUENCY        STM32_HCLK_FREQUENCY
