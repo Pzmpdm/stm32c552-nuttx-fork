@@ -3565,6 +3565,15 @@ config ARCH_BOARD_NUCLEO_U3C5ZI_Q
 		a Cortex-M33 MCU running at up to 96 MHz with 2 MiB Flash and
 		640 KiB SRAM.
 
+config ARCH_BOARD_STM32C552VET6_DEVKIT
+	bool "STM32C552VET6 DevKit Core"
+	depends on ARCH_CHIP_STM32C552VE
+	select ARCH_BOARD_COMMON
+	select ARCH_BOARD_STM32_CUSTOM_CLOCKCONFIG
+	---help---
+		STM32C552VET6 DevKit Core with an 8 MHz HSE crystal and a USART1
+		console on PA9 and PA10.
+
 config ARCH_BOARD_NUCLEO_C562RE
 	bool "STMicro NUCLEO-C562RE board"
 	depends on ARCH_CHIP_STM32C562RE
@@ -4487,6 +4496,7 @@ config ARCH_BOARD
 	default "stm32n6570-dk"                if ARCH_BOARD_STM32N6570_DK
 	default "nucleo-u5a5zj-q"              if ARCH_BOARD_NUCLEO_U5A5ZJ_Q
 	default "nucleo-u3c5zi-q"              if ARCH_BOARD_NUCLEO_U3C5ZI_Q
+	default "stm32c552vet6-devkit"         if ARCH_BOARD_STM32C552VET6_DEVKIT
 	default "nucleo-c562re"                if ARCH_BOARD_NUCLEO_C562RE
 	default "stm32l476vg-disco"            if ARCH_BOARD_STM32L476VG_DISCO
 	default "stm32l476-mdk"                if ARCH_BOARD_STM32L476_MDK

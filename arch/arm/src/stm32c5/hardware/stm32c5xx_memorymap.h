@@ -24,6 +24,12 @@
 #define __ARCH_ARM_SRC_STM32C5_HARDWARE_STM32C5XX_MEMORYMAP_H
 
 /****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+/****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
@@ -141,7 +147,9 @@
 #define STM32_ADC12_COMMON_BASE 0x42028300
 #define STM32_ADC12_BASE        STM32_ADC1_BASE
 #define STM32_DAC1_BASE         0x42028400
-#define STM32_AES_BASE          0x420c0000
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define STM32_AES_BASE          0x420c0000
+#endif
 #define STM32_HASH_BASE         0x420c0400
 #define STM32_RNG_BASE          0x420c0800
 

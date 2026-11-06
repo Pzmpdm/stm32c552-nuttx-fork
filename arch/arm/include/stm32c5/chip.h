@@ -36,9 +36,13 @@
 #define STM32_SRAM1_SIZE       0x00010000 /* 64 KiB SRAM1 */
 #define STM32_SRAM2_SIZE       0x00010000 /* 64 KiB SRAM2 */
 
-/* SRAM1 and SRAM2 are contiguous on STM32C5. */
+/* The C552 port uses SRAM1 until SRAM2 ECC initialization is supported. */
 
-#define STM32_PRIMARY_SRAM_SIZE 0x00020000
+#ifdef CONFIG_ARCH_CHIP_STM32C552VE
+#  define STM32_PRIMARY_SRAM_SIZE STM32_SRAM1_SIZE
+#else
+#  define STM32_PRIMARY_SRAM_SIZE 0x00020000
+#endif
 
 #define STM32_NFSMC           0 /* No external memory controller */
 #define STM32_NATIM           2 /* TIM1 and TIM8 */

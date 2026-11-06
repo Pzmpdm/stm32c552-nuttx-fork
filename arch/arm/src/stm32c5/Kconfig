@@ -46,6 +46,13 @@ choice
 	default ARCH_CHIP_STM32C562RE
 	depends on ARCH_CHIP_STM32C5
 
+config ARCH_CHIP_STM32C552VE
+	bool "STM32C552VE"
+	select STM32_FLASH_CONFIG_E
+	select STM32C5_IO_CONFIG_V
+	---help---
+		STM32C5 Cortex-M33, 512 KiB flash, 128 KiB SRAM, 100 pins.
+
 config ARCH_CHIP_STM32C562CE
 	bool "STM32C562CE"
 	select STM32_FLASH_CONFIG_E

@@ -133,7 +133,9 @@
 #define STM32_IRQ_FPU           (STM32_IRQ_FIRST + 65)
 #define STM32_IRQ_ICACHE        (STM32_IRQ_FIRST + 66)
 #define STM32_IRQ_CORDIC        (STM32_IRQ_FIRST + 67)
-#define STM32_IRQ_AES           (STM32_IRQ_FIRST + 68)
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define STM32_IRQ_AES         (STM32_IRQ_FIRST + 68)
+#endif
 #define STM32_IRQ_HASH          (STM32_IRQ_FIRST + 69)
 #define STM32_IRQ_I2C2_EV       (STM32_IRQ_FIRST + 70)
 #define STM32_IRQ_I2C2_ER       (STM32_IRQ_FIRST + 71)

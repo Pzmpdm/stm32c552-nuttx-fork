@@ -3,16 +3,17 @@ ST STM32C5
 ==========
 
 The STM32C5 family consists of mainstream microcontrollers based on the Arm
-Cortex-M33 core.  NuttX currently supports STM32C562 devices.
+Cortex-M33 core.  NuttX supports STM32C562 devices and the STM32C552VE.
 
 Supported MCUs
 ==============
 
-=======================  =======  ==============================
+=======================  =======  ==============================================
 MCU                      Support  Notes
-=======================  =======  ==============================
-STM32C562CE/KE/ME/RE/VE  Yes      512 KiB Flash, 128 KiB SRAM
-=======================  =======  ==============================
+=======================  =======  ==============================================
+STM32C562CE/KE/ME/RE/VE   Yes      512 KiB Flash, 128 KiB SRAM
+STM32C552VE              Yes      512 KiB Flash, 64 KiB SRAM1 used by the port
+=======================  =======  ==============================================
 
 Peripheral Support
 ==================

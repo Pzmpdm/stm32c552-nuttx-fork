@@ -24,6 +24,12 @@
 #define __ARCH_ARM_SRC_STM32C5_HARDWARE_STM32_DMASIGMAP_H
 
 /****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+/****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
@@ -90,8 +96,10 @@
 #define LPDMA_REQ_I3C1_TX     (58)
 #define LPDMA_REQ_I3C1_TC     (59)
 #define LPDMA_REQ_I3C1_RS     (60)
-#define LPDMA_REQ_AES_OUT     (61)
-#define LPDMA_REQ_AES_IN      (62)
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define LPDMA_REQ_AES_OUT   (61)
+#  define LPDMA_REQ_AES_IN    (62)
+#endif
 #define LPDMA_REQ_HASH_IN     (63)
 #define LPDMA_REQ_I2C2_RX     (64)
 #define LPDMA_REQ_I2C2_TX     (65)

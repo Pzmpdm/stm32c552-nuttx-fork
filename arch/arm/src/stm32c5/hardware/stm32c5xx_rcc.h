@@ -318,7 +318,9 @@
 #define RCC_AHB2RSTR_GPIOHRST       (1 << 7)
 #define RCC_AHB2RSTR_ADC12RST       (1 << 10)
 #define RCC_AHB2RSTR_DAC1RST        (1 << 11)
-#define RCC_AHB2RSTR_AESRST         (1 << 16)
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define RCC_AHB2RSTR_AESRST         (1 << 16)
+#endif
 #define RCC_AHB2RSTR_HASHRST        (1 << 17)
 #define RCC_AHB2RSTR_RNGRST         (1 << 18)
 
@@ -390,7 +392,9 @@
 #define RCC_AHB2ENR_GPIOHEN         (1 << 7)
 #define RCC_AHB2ENR_ADC12EN         (1 << 10)
 #define RCC_AHB2ENR_DAC1EN          (1 << 11)
-#define RCC_AHB2ENR_AESEN           (1 << 16)
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define RCC_AHB2ENR_AESEN           (1 << 16)
+#endif
 #define RCC_AHB2ENR_HASHEN          (1 << 17)
 #define RCC_AHB2ENR_RNGEN           (1 << 18)
 
@@ -465,7 +469,9 @@
 #define RCC_AHB2LPENR_GPIOHLPEN     (1 << 7)
 #define RCC_AHB2LPENR_ADC12LPEN     (1 << 10)
 #define RCC_AHB2LPENR_DAC1LPEN      (1 << 11)
-#define RCC_AHB2LPENR_AESLPEN       (1 << 16)
+#ifndef CONFIG_ARCH_CHIP_STM32C552VE
+#  define RCC_AHB2LPENR_AESLPEN       (1 << 16)
+#endif
 #define RCC_AHB2LPENR_HASHLPEN      (1 << 17)
 #define RCC_AHB2LPENR_RNGLPEN       (1 << 18)
 
