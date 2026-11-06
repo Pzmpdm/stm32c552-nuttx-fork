@@ -20,6 +20,6 @@
 #
 # ##############################################################################
 
-target_sources(board PRIVATE stm32_boot.c)
+target_sources(board PRIVATE stm32_boot.c stm32_boardgpio.c)
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

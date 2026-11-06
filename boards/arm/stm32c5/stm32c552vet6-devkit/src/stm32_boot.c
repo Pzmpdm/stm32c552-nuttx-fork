@@ -27,6 +27,8 @@
 #include <nuttx/config.h>
 #include <nuttx/board.h>
 #include <nuttx/debug.h>
+#include <nuttx/input/buttons.h>
+#include <nuttx/leds/userled.h>
 
 #include <arch/board/board.h>
 
@@ -46,7 +48,7 @@ void stm32_board_clockconfig(void)
 
 void stm32_board_initialize(void)
 {
-  /* The USART1 console is initialized by the common STM32 startup. */
+  board_autoled_initialize();
 }
 
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
@@ -58,5 +60,21 @@ void board_late_initialize(void)
     {
       syslog(LOG_ERR, "ERROR: stm32_common_initialize() failed: %d\n", ret);
     }
+
+#if defined(CONFIG_USERLED_LOWER) && !defined(CONFIG_ARCH_LEDS)
+  ret = userled_lower_initialize("/dev/userleds");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_INPUT_BUTTONS_LOWER
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
 }
 #endif

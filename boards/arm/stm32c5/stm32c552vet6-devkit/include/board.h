@@ -50,6 +50,26 @@
 #define GPIO_USART1_TX               GPIO_USART1_TX_2
 #define GPIO_USART1_RX               GPIO_USART1_RX_2
 
+/* LED2 and SW2 are both active low. */
+
+#define BOARD_LED_USER               0
+#define BOARD_NLEDS                  1
+#define BOARD_LED_USER_BIT           (1 << BOARD_LED_USER)
+
+#define LED_STARTED                  0
+#define LED_HEAPALLOCATE             0
+#define LED_IRQSENABLED              0
+#define LED_STACKCREATED             1
+#define LED_INIRQ                    0
+#define LED_SIGNAL                   0
+#define LED_ASSERTION                0
+#define LED_PANIC                    2
+#define LED_IDLE                     0
+
+#define BUTTON_USER                  0
+#define NUM_BUTTONS                  1
+#define BUTTON_USER_BIT              (1 << BUTTON_USER)
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
