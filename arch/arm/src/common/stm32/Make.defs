@@ -37,6 +37,10 @@ ARCHXXINCLUDES += ${INCDIR_PREFIX}$(STM32_COMMON_SRCDIR)
 #    the M3/M4 block because the other Cortex-M4 families (L4/WB/WL5) include
 #    this file too but provide their own implementation.
 
+ifeq ($(CONFIG_STM32_HAVE_IP_SPI_V5)$(CONFIG_STM32_SPI),yy)
+CHIP_CSRCS += stm32_spi_v5.c
+endif
+
 # Architecture-neutral sources used by every STM32 family
 
 CHIP_CSRCS += stm32_waste.c

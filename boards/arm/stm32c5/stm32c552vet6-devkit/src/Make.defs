@@ -25,4 +25,8 @@
 ASRCS =
 CSRCS = stm32_boot.c stm32_boardgpio.c
 
+ifeq ($(CONFIG_STM32_SPI1),y)
+CSRCS += stm32_spi.c
+endif
+
 VPATH += :board

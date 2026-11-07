@@ -844,6 +844,11 @@ config STM32_HAVE_IP_SPI_V3
 config STM32_HAVE_IP_SPI_V4
 	bool
 
+config STM32_HAVE_IP_SPI_V5
+	bool
+	help
+		CFG1/CFG2, TXDR/RXDR and CSTART/CSUSP register layout (H5/C5).
+
 config STM32_HAVE_SPI1
 	bool
 

@@ -22,4 +22,8 @@
 
 target_sources(board PRIVATE stm32_boot.c stm32_boardgpio.c)
 
+if(CONFIG_STM32_SPI1)
+  target_sources(board PRIVATE stm32_spi.c)
+endif()
+
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

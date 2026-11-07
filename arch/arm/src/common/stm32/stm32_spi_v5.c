@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h5/stm32_spi.c
+ * arch/arm/src/common/stm32/stm32_spi_v5.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -189,7 +189,8 @@
 #      error Not supported SPI1 frequency
 #    endif
 #  endif
-#  ifndef STM32_RCC_CCIPR3_SPI1SEL
+#  if !defined(CONFIG_ARCH_CHIP_STM32C5) && \
+      !defined(STM32_RCC_CCIPR3_SPI1SEL)
 #    error Must define STM32_RCC_CCIPR3_SPI1SEL in board.h
 #  endif
 #endif /* SPI1 */
@@ -1145,6 +1146,36 @@ static inline void spi_writebyte(struct stm32_spidev_s *priv,
 }
 
 /****************************************************************************
+ * Name: spi_readdword / spi_writedword
+ *
+ * Description:
+ *   Access a single frame wider than 16 bits without truncation or packing.
+ *
+ ****************************************************************************/
+
+static inline uint32_t spi_readdword(struct stm32_spidev_s *priv)
+{
+  if (priv->config == SIMPLEX_TX)
+    {
+      return 0;
+    }
+
+  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_RXP) == 0);
+  return spi_getreg(priv, STM32_SPI_RXDR_OFFSET);
+}
+
+static inline void spi_writedword(struct stm32_spidev_s *priv, uint32_t word)
+{
+  if (priv->config == SIMPLEX_RX)
+    {
+      return;
+    }
+
+  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_TXP) == 0);
+  spi_putreg(priv, STM32_SPI_TXDR_OFFSET, word);
+}
+
+/****************************************************************************
  * Name: spi_dumpregs
  ****************************************************************************/
 
@@ -1156,11 +1187,13 @@ static void spi_dumpregs(struct stm32_spidev_s *priv)
           spi_getreg(priv, STM32_SPI_CR1_OFFSET),
           spi_getreg(priv, STM32_SPI_CFG1_OFFSET),
           spi_getreg(priv, STM32_SPI_CFG2_OFFSET));
-  spiinfo("IER: 0x%08" PRIx32 " SR: 0x%08" PRIx32
-          " I2SCFGR: 0x%08" PRIx32 "\n",
+  spiinfo("IER: 0x%08" PRIx32 " SR: 0x%08" PRIx32 "\n",
           spi_getreg(priv, STM32_SPI_IER_OFFSET),
-          spi_getreg(priv, STM32_SPI_SR_OFFSET),
+          spi_getreg(priv, STM32_SPI_SR_OFFSET));
+#ifndef CONFIG_ARCH_CHIP_STM32C5
+  spiinfo("I2SCFGR: 0x%08" PRIx32 "\n",
           spi_getreg(priv, STM32_SPI_I2SCFGR_OFFSET));
+#endif
 }
 #endif
 
@@ -1983,7 +2016,12 @@ static uint32_t spi_send(struct spi_dev_s *dev, uint32_t wd)
    * frames, two bytes are received by a 16-bit read of the data register!
    */
 
-  if (priv->nbits > 8)
+  if (priv->nbits > 16)
+    {
+      spi_writedword(priv, wd);
+      ret = spi_readdword(priv);
+    }
+  else if (priv->nbits > 8)
     {
       spi_writeword(priv, (uint16_t)(wd & 0xffff));
       ret = spi_readword(priv);
@@ -1994,9 +2032,7 @@ static uint32_t spi_send(struct spi_dev_s *dev, uint32_t wd)
       ret = (uint32_t)spi_readbyte(priv);
     }
 
-  /* Check and clear any error flags (Reading from the SR clears the error
-   * flags).
-   */
+  /* Read status for diagnostics.  Error flags are cleared through IFCR. */
 
   regval = spi_getreg(priv, STM32_SPI_SR_OFFSET);
 
@@ -2055,8 +2091,14 @@ static void spi_exchange_nodma(struct spi_dev_s *dev,
 
   /* Disable the DMA Requests */
 
-  spi_modifyreg(priv, STM32_SPI_CFG1_OFFSET, SPI_CFG1_RXDMAEN |
-                                             SPI_CFG1_TXDMAEN, 0);
+  if ((spi_getreg(priv, STM32_SPI_CFG1_OFFSET) &
+       (SPI_CFG1_RXDMAEN | SPI_CFG1_TXDMAEN)) != 0)
+    {
+      spi_enable(priv, false);
+      spi_modifyreg(priv, STM32_SPI_CFG1_OFFSET,
+                    SPI_CFG1_RXDMAEN | SPI_CFG1_TXDMAEN, 0);
+      spi_enable(priv, true);
+    }
 
   /* Clear suspend flag */
 
@@ -2069,9 +2111,42 @@ static void spi_exchange_nodma(struct spi_dev_s *dev,
       spi_modifyreg(priv, STM32_SPI_CR1_OFFSET, 0, SPI_CR1_CSTART);
     }
 
-  /* 8- or 16-bit mode? */
+  /* Use an access matching the frame width to avoid FIFO packing. */
 
-  if (priv->nbits > 8)
+  if (priv->nbits > 16)
+    {
+      const uint32_t *src = (const uint32_t *)txbuffer;
+      uint32_t *dest = (uint32_t *)rxbuffer;
+      size_t ntx = 0;
+      size_t nrx = 0;
+      uint32_t word;
+
+      while (ntx < nwords)
+        {
+          spi_writedword(priv, src == NULL ? UINT32_MAX : *src++);
+          ntx++;
+          if (ntx - nrx == priv->depth / 4)
+            {
+              word = spi_readdword(priv);
+              nrx++;
+              if (dest != NULL)
+                {
+                  *dest++ = word;
+                }
+            }
+        }
+
+      while (nrx < nwords)
+        {
+          word = spi_readdword(priv);
+          nrx++;
+          if (dest != NULL)
+            {
+              *dest++ = word;
+            }
+        }
+    }
+  else if (priv->nbits > 8)
     {
       /* 16-bit mode */
 
@@ -2714,13 +2789,13 @@ static void spi_bus_initialize(struct stm32_spidev_s *priv)
   priv->nbits     = 8;
   priv->mode      = SPIDEV_MODE0;
 
+  /* CRCPOLY is writable only with SPE clear.  setfrequency enables SPI. */
+
+  spi_putreg(priv, STM32_SPI_CRCPOLY_OFFSET, 7);
+
   /* Select a default frequency of approx. 400KHz */
 
   spi_setfrequency((struct spi_dev_s *)priv, 400000);
-
-  /* CRCPOLY configuration */
-
-  spi_putreg(priv, STM32_SPI_CRCPOLY_OFFSET, 7);
 
 #ifdef CONFIG_STM32_SPI_DMA
   /* Get DMA channels.  NOTE: stm32_dmachannel() will always assign the DMA

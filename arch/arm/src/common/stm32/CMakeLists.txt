@@ -29,6 +29,10 @@ endif()
 
 set(SRCS)
 
+if(CONFIG_STM32_HAVE_IP_SPI_V5 AND CONFIG_STM32_SPI)
+  list(APPEND SRCS stm32_spi_v5.c)
+endif()
+
 # Architecture-neutral sources used by every STM32 family
 
 list(APPEND SRCS stm32_waste.c)

@@ -101,6 +101,18 @@
 #define NUM_BUTTONS                  1
 #define BUTTON_USER_BIT              (1 << BUTTON_USER)
 
+/* SPI1 on H2: SCK PA5, MISO PA6, MOSI PA7, GPIO CS PA4.
+ * The initial profile limits SCK to PCLK2/2 at 48 MHz.
+ */
+
+#define GPIO_SPI1_SCK       (GPIO_SPI1_SCK_1 | GPIO_SPEED_50MHZ)
+#define GPIO_SPI1_MISO      GPIO_SPI1_MISO_1
+#define GPIO_SPI1_MOSI      (GPIO_SPI1_MOSI_1 | GPIO_SPEED_50MHZ)
+#define GPIO_SPI1_CS        (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_25MHZ | \
+                             GPIO_OUTPUT_SET | GPIO_PORTA | GPIO_PIN4)
+#define STM32_SPI1_FREQUENCY STM32_PCLK2_FREQUENCY
+#define STM32_SPI_CLK_MAX    24000000UL
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -114,6 +126,13 @@ extern "C"
 
 void stm32_board_clockconfig(void);
 void stm32_board_initialize(void);
+
+#ifdef CONFIG_STM32_SPI1
+void stm32_spi1_initialize(void);
+#  ifdef CONFIG_SPI_DRIVER
+int stm32_spi1_register(void);
+#  endif
+#endif
 
 #ifdef __cplusplus
 }

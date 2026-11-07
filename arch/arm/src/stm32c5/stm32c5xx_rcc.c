@@ -185,6 +185,14 @@ void stm32_rcc_enableperipherals(void)
            RCC_AHB2ENR_GPIOEEN | RCC_AHB2ENR_GPIOHEN;
   modifyreg32(STM32_RCC_AHB2ENR, 0, regval);
 
+#ifdef CONFIG_STM32_SPI1
+  /* SPI1 kernel clock: PCLK2.  Read back the gate before accessing SPI. */
+
+  modifyreg32(STM32_RCC_CCIPR1, RCC_CCIPR1_SPI1SEL_MASK, 0);
+  modifyreg32(STM32_RCC_APB2ENR, 0, RCC_APB2ENR_SPI1EN);
+  (void)getreg32(STM32_RCC_APB2ENR);
+#endif
+
 #ifdef CONFIG_STM32_USART1
   modifyreg32(STM32_RCC_APB2ENR, 0, RCC_APB2ENR_USART1EN);
 #endif

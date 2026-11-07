@@ -159,6 +159,9 @@ void stm32_board_clockconfig(void)
 void stm32_board_initialize(void)
 {
   board_autoled_initialize();
+#ifdef CONFIG_STM32_SPI1
+  stm32_spi1_initialize();
+#endif
 }
 
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
@@ -187,6 +190,14 @@ void board_late_initialize(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_STM32_SPI1) && defined(CONFIG_SPI_DRIVER)
+  ret = stm32_spi1_register();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: SPI1 initialization failed: %d\n", ret);
     }
 #endif
 
