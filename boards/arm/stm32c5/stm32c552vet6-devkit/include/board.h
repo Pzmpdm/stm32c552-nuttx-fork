@@ -58,6 +58,11 @@
 #define GPIO_USART1_TX               GPIO_USART1_TX_2
 #define GPIO_USART1_RX               GPIO_USART1_RX_2
 
+/* H2 pin 1: PA2 TX; H2 pin 6: PA3 RX.  Both use AF7. */
+
+#define GPIO_USART2_TX               GPIO_USART2_TX_1
+#define GPIO_USART2_RX               GPIO_USART2_RX_1
+
 /* H2 pin 3: PA0 TIM2_CH1 output, AF1. */
 
 #define GPIO_TIM2_CH1OUT             GPIO_TIM2_CH1OUT_1
