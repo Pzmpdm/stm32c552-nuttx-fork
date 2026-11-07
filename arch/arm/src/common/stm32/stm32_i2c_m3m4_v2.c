@@ -249,10 +249,18 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#warning TODO: check I2C clock source. It must be HSI!
+#ifndef CONFIG_ARCH_CHIP_STM32C5
+#  warning TODO: check I2C clock source. It must be HSI!
+#endif
 #undef INVALID_CLOCK_SOURCE
 
-#if defined(CONFIG_STM32_STM32F30XX) || defined(CONFIG_STM32_STM32F33XX) || \
+#if defined(CONFIG_ARCH_CHIP_STM32C5)
+#  if STM32_PCLK1_FREQUENCY != 48000000
+#    error STM32C5 I2C timing requires 48 MHz PCLK1
+#  endif
+#  define I2C_RCC_ENR   STM32_RCC_APB1LENR
+#  define I2C_RCC_RSTR  STM32_RCC_APB1LRSTR
+#elif defined(CONFIG_STM32_STM32F30XX) || defined(CONFIG_STM32_STM32F33XX) || \
     defined(CONFIG_STM32_STM32F37XX)
 #  if STM32_HSI_FREQUENCY != 8000000 || defined(INVALID_CLOCK_SOURCE)
 #    error STM32_I2C: Peripheral clock is HSI and it must be 8MHz or the speed/timing calculations need to be redone.
@@ -263,6 +271,11 @@
 #  endif
 #else
 #  error STM32_I2C: Device not Supported.
+#endif
+
+#ifndef CONFIG_ARCH_CHIP_STM32C5
+#  define I2C_RCC_ENR   STM32_RCC_APB1ENR
+#  define I2C_RCC_RSTR  STM32_RCC_APB1RSTR
 #endif
 
 /* CONFIG_I2C_POLLED may be set so that I2C interrupts will not be used.
@@ -294,13 +307,23 @@
 
 /* Macros to convert a I2C pin to a GPIO output */
 
-#define I2C_OUTPUT (GPIO_OUTPUT | GPIO_FLOAT | GPIO_OPENDRAIN |\
-                      GPIO_SPEED_50MHz | GPIO_OUTPUT_SET)
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+#  define I2C_OUTPUT (GPIO_OUTPUT | GPIO_FLOAT | GPIO_OPENDRAIN | \
+                     GPIO_SPEED_50MHZ | GPIO_OUTPUT_SET)
+#else
+#  define I2C_OUTPUT (GPIO_OUTPUT | GPIO_FLOAT | GPIO_OPENDRAIN | \
+                     GPIO_SPEED_50MHz | GPIO_OUTPUT_SET)
+#endif
 
 #define MKI2C_OUTPUT(p) (((p) & (GPIO_PORT_MASK | GPIO_PIN_MASK)) | I2C_OUTPUT)
 
 #define I2C_CR1_TXRX      (I2C_CR1_RXIE | I2C_CR1_TXIE)
 #define I2C_CR1_ALLINTS   (I2C_CR1_TXRX | I2C_CR1_TCIE | I2C_CR1_ERRIE)
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+#  undef I2C_CR1_ALLINTS
+#  define I2C_CR1_ALLINTS (I2C_CR1_TXRX | I2C_CR1_TCIE | I2C_CR1_ERRIE | \
+                         I2C_CR1_NACKIE)
+#endif
 
 /* Unused bit in I2c_ISR used to communicate a bad state has occurred in
  * the isr processing
@@ -505,13 +528,23 @@ static int stm32_i2c_pm_prepare(struct pm_callback_s *cb, int domain,
 static const struct stm32_i2c_config_s stm32_i2c1_config =
 {
   .base          = STM32_I2C1_BASE,
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  .clk_bit       = RCC_APB1LENR_I2C1EN,
+  .reset_bit     = RCC_APB1LRSTR_I2C1RST,
+#else
   .clk_bit       = RCC_APB1ENR_I2C1EN,
   .reset_bit     = RCC_APB1RSTR_I2C1RST,
+#endif
   .scl_pin       = GPIO_I2C1_SCL,
   .sda_pin       = GPIO_I2C1_SDA,
 #ifndef CONFIG_I2C_POLLED
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  .ev_irq        = STM32_IRQ_I2C1_EV,
+  .er_irq        = STM32_IRQ_I2C1_ER
+#else
   .ev_irq        = STM32_IRQ_I2C1EV,
   .er_irq        = STM32_IRQ_I2C1ER
+#endif
 #endif
 };
 
@@ -670,7 +703,11 @@ static const struct i2c_ops_s stm32_i2c_ops =
 static inline uint16_t stm32_i2c_getreg(struct stm32_i2c_priv_s *priv,
                                         uint8_t offset)
 {
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  return (uint16_t)getreg32(priv->config->base + offset);
+#else
   return getreg16(priv->config->base + offset);
+#endif
 }
 
 /****************************************************************************
@@ -698,7 +735,11 @@ static inline uint32_t stm32_i2c_getreg32(struct stm32_i2c_priv_s *priv,
 static inline void stm32_i2c_putreg(struct stm32_i2c_priv_s *priv,
                                     uint8_t offset, uint16_t value)
 {
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  putreg32(value, priv->config->base + offset);
+#else
   putreg16(value, priv->config->base + offset);
+#endif
 }
 
 /****************************************************************************
@@ -807,7 +848,9 @@ static inline int stm32_i2c_sem_waitdone(struct stm32_i2c_priv_s *priv)
 
   /* Signal the interrupt handler that we are waiting */
 
+#ifndef CONFIG_ARCH_CHIP_STM32C5
   priv->intstate = INTSTATE_WAITING;
+#endif
   do
     {
       /* Wait until either the transfer is complete or the timeout expires */
@@ -1213,11 +1256,14 @@ static void stm32_i2c_tracedump(struct stm32_i2c_priv_s *priv)
 static void stm32_i2c_setclock(struct stm32_i2c_priv_s *priv,
                                uint32_t frequency)
 {
+  uint32_t timingr;
+#ifndef CONFIG_ARCH_CHIP_STM32C5
   uint8_t presc;
   uint8_t scl_delay;
   uint8_t sda_delay;
   uint8_t scl_h_period;
   uint8_t scl_l_period;
+#endif
 
   /* I2C peripheral must be disabled to update clocking configuration.
    * This will SW reset the device.
@@ -1227,6 +1273,14 @@ static void stm32_i2c_setclock(struct stm32_i2c_priv_s *priv,
 
   if (frequency != priv->frequency)
     {
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+      /* Board timings match PCLK1 and the specified bus rise/fall times.
+       * Other frequencies are rejected before taking the bus lock.
+       */
+
+      timingr = frequency == 400000 ? STM32_I2C_TIMINGR_400KHZ :
+                                     STM32_I2C_TIMINGR_100KHZ;
+#else
       /*  The Speed and timing calculation are based on the following
        *  fI2CCLK = HSI and is 16Mhz
        *  Analog filter is on,
@@ -1268,12 +1322,13 @@ static void stm32_i2c_setclock(struct stm32_i2c_priv_s *priv,
           scl_l_period = 162;
         }
 
-      uint32_t timingr =
+      timingr =
         (presc << I2C_TIMINGR_PRESC_SHIFT) |
         (scl_delay << I2C_TIMINGR_SCLDEL_SHIFT) |
         (sda_delay << I2C_TIMINGR_SDADEL_SHIFT) |
         (scl_h_period << I2C_TIMINGR_SCLH_SHIFT) |
         (scl_l_period << I2C_TIMINGR_SCLL_SHIFT);
+#endif
 
       stm32_i2c_putreg32(priv, STM32_I2C_TIMINGR_OFFSET, timingr);
       priv->frequency = frequency;
@@ -1281,6 +1336,10 @@ static void stm32_i2c_setclock(struct stm32_i2c_priv_s *priv,
 
   /* Enable I2C peripheral */
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  stm32_i2c_modifyreg32(priv, STM32_I2C_CR1_OFFSET, I2C_CR1_DNF_MASK,
+                       I2C_CR1_ANFOFF);
+#endif
   stm32_i2c_modifyreg32(priv, STM32_I2C_CR1_OFFSET, 0, I2C_CR1_PE);
 }
 
@@ -1493,10 +1552,33 @@ static inline void stm32_i2c_clearinterrupts(struct stm32_i2c_priv_s *priv)
 static int stm32_i2c_isr_process(struct stm32_i2c_priv_s *priv)
 {
   uint32_t status;
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  uint32_t cr2;
+  bool continuation;
+  int nbytes;
+#endif
 
   /* Get state of the I2C controller */
 
   status = stm32_i2c_getreg32(priv, STM32_I2C_ISR_OFFSET);
+
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  /* ES0661 2.7.2: a controller BERR can be spurious. Clear only that flag
+   * and keep the current message alive, including a BERR-only interrupt.
+   */
+
+  if ((status & I2C_INT_BERR) != 0)
+    {
+      stm32_i2c_putreg32(priv, STM32_I2C_ICR_OFFSET, I2C_INT_BERR);
+      status &= ~I2C_INT_BERR;
+      if ((status & (I2C_INT_NACK | I2C_ISR_TXIS | I2C_ISR_RXNE |
+                     I2C_ISR_TC | I2C_ISR_TCR | I2C_INT_ARLO |
+                     I2C_INT_OVR | I2C_INT_PECERR | I2C_INT_TIMEOUT)) == 0)
+        {
+          return OK;
+        }
+    }
+#endif
 
   i2cinfo("ENTER: status = 0x%08" PRIx32 "\n", status);
 
@@ -1919,6 +2001,36 @@ static int stm32_i2c_isr_process(struct stm32_i2c_priv_s *priv)
       i2cinfo("TCR: ENTER dcnt = %i msgc = %i status 0x%08" PRIx32 "\n",
               priv->dcnt, priv->msgc, status);
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+      /* msgc includes the current message. Never advance past its end. */
+
+      if (priv->dcnt == 0 && priv->msgc > 1)
+        {
+          priv->msgc--;
+          priv->msgv++;
+          priv->ptr   = priv->msgv->buffer;
+          priv->dcnt  = priv->msgv->length;
+          priv->flags = priv->msgv->flags;
+        }
+
+      continuation = priv->msgc > 1 &&
+                     ((priv->msgv + 1)->flags & I2C_M_NOSTART) != 0;
+      nbytes = priv->dcnt > 255 ? 255 : priv->dcnt;
+
+      /* NBYTES releases the TCR clock stretch. Program RELOAD and NBYTES
+       * together so the last chunk raises TC, rather than another TCR.
+       */
+
+      cr2 = stm32_i2c_getreg32(priv, STM32_I2C_CR2_OFFSET);
+      cr2 &= ~(I2C_CR2_RELOAD | I2C_CR2_NBYTES_MASK);
+      cr2 |= (uint32_t)nbytes << I2C_CR2_NBYTES_SHIFT;
+      if (continuation || priv->dcnt > 255)
+        {
+          cr2 |= I2C_CR2_RELOAD;
+        }
+
+      stm32_i2c_putreg32(priv, STM32_I2C_CR2_OFFSET, cr2);
+#else
       /* If no more bytes in the current message to transfer */
 
       if (priv->dcnt == 0)
@@ -2006,6 +2118,7 @@ static int stm32_i2c_isr_process(struct stm32_i2c_priv_s *priv)
           i2cinfo("TCR: EXIT dcnt = %i msgc = %i status 0x%08" PRIx32 "\n",
                   priv->dcnt, priv->msgc, status);
         }
+#endif
     }
 
   /* Empty call handler
@@ -2154,9 +2267,14 @@ static int stm32_i2c_init(struct stm32_i2c_priv_s *priv)
 
   /* Enable power and reset the peripheral */
 
-  modifyreg32(STM32_RCC_APB1ENR, 0, priv->config->clk_bit);
-  modifyreg32(STM32_RCC_APB1RSTR, 0, priv->config->reset_bit);
-  modifyreg32(STM32_RCC_APB1RSTR, priv->config->reset_bit, 0);
+  modifyreg32(I2C_RCC_ENR, 0, priv->config->clk_bit);
+  modifyreg32(I2C_RCC_RSTR, 0, priv->config->reset_bit);
+  modifyreg32(I2C_RCC_RSTR, priv->config->reset_bit, 0);
+
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  modifyreg32(STM32_RCC_CCIPR2, RCC_CCIPR2_I2C1SEL_MASK,
+              RCC_CCIPR2_I2C1SEL_PCLK1);
+#endif
 
   /* Configure pins */
 
@@ -2224,7 +2342,7 @@ static int stm32_i2c_deinit(struct stm32_i2c_priv_s *priv)
 
   /* Disable clocking */
 
-  modifyreg32(STM32_RCC_APB1ENR, priv->config->clk_bit, 0);
+  modifyreg32(I2C_RCC_ENR, priv->config->clk_bit, 0);
 
   return OK;
 }
@@ -2280,6 +2398,14 @@ static int stm32_i2c_process(struct i2c_master_s *dev,
 
   priv->status = 0;
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  /* Arm completion before START: a fast address NACK may interrupt us
+   * before sem_waitdone().  Its semaphore post must not be lost.
+   */
+
+  priv->intstate = INTSTATE_WAITING;
+#endif
+
 #ifndef CONFIG_I2C_POLLED
   /* Enable transmit and receive interrupts here so when we send the start
    * condition below the ISR will fire if the data was sent and some
@@ -2327,6 +2453,10 @@ static int stm32_i2c_process(struct i2c_master_s *dev,
 
   status = priv->status & 0xffffffff;
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  status &= ~I2C_INT_BERR;
+#endif
+
   if (waitrc < 0)
     {
       /* Connection timed out */
@@ -2362,11 +2492,14 @@ static int stm32_i2c_process(struct i2c_master_s *dev,
 
       if (status & I2C_INT_BERR)
         {
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+          /* ES0661 2.7.2 also applies to C5 controller mode. */
+#else
           /* Bus Error, ignore it because of errata (revision A,Z) */
 
-          i2cerr("ERROR: I2C Bus Error\n");
-
           /* errval = EIO; */
+#endif
+          i2cerr("ERROR: I2C Bus Error\n");
         }
       else if (status & I2C_INT_ARLO)
         {
@@ -2477,8 +2610,38 @@ static int stm32_i2c_transfer(struct i2c_master_s *dev,
 {
   struct stm32_i2c_priv_s *priv;
   int ret;
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  int i;
+#endif
 
   DEBUGASSERT(dev);
+
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  if (msgs == NULL || count < 1 || count > UINT8_MAX)
+    {
+      return -EINVAL;
+    }
+
+  for (i = 0; i < count; i++)
+    {
+      if ((msgs[i].frequency != 100000 && msgs[i].frequency != 400000) ||
+          msgs[i].frequency != msgs[0].frequency ||
+          (msgs[i].flags & I2C_M_TEN) != 0 || msgs[i].addr > 0x7f ||
+          msgs[i].length < 0 ||
+          (msgs[i].length > 0 && msgs[i].buffer == NULL))
+        {
+          return -EINVAL;
+        }
+
+      if ((msgs[i].flags & I2C_M_NOSTART) != 0 &&
+          (i == 0 || msgs[i].length == 0 ||
+           msgs[i].addr != msgs[i - 1].addr ||
+           ((msgs[i].flags ^ msgs[i - 1].flags) & I2C_M_READ) != 0))
+        {
+          return -EINVAL;
+        }
+    }
+#endif
 
   /* Get I2C private structure */
 

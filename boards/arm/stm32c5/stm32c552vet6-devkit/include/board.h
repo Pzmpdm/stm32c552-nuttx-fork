@@ -63,6 +63,20 @@
 #define GPIO_USART2_TX               GPIO_USART2_TX_1
 #define GPIO_USART2_RX               GPIO_USART2_RX_1
 
+/* H3 pins 21/20: PB8 SCL / PB9 SDA, AF4, external pull-ups required. */
+
+#define GPIO_I2C1_SCL                (GPIO_I2C1_SCL_3 | GPIO_OPENDRAIN | \
+                                     GPIO_SPEED_50MHZ)
+#define GPIO_I2C1_SDA                (GPIO_I2C1_SDA_2 | GPIO_OPENDRAIN | \
+                                     GPIO_SPEED_50MHZ)
+
+/* 48 MHz PCLK1, analog/digital filters off.  Conservative TIMINGR values
+ * for rise <= 300 ns and fall <= 100 ns.  Actual SCL must be measured.
+ */
+
+#define STM32_I2C_TIMINGR_100KHZ     0x20814f4ful
+#define STM32_I2C_TIMINGR_400KHZ     0x20611214ul
+
 /* H2 pin 3: PA0 TIM2_CH1 output, AF1. */
 
 #define GPIO_TIM2_CH1OUT             GPIO_TIM2_CH1OUT_1

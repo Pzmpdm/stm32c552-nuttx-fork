@@ -572,6 +572,7 @@ config STM32_I2C1_SLAVE
 	bool "I2C1 Slave"
 	default n
 	depends on !STM32_I2C1 && I2C_SLAVE
+	depends on !ARCH_CHIP_STM32C5
 	select STM32_I2C_SLAVE
 
 config STM32_I2C2_SLAVE
