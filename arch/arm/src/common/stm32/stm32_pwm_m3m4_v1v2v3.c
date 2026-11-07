@@ -45,9 +45,10 @@
 /* This module then only compiles if there is at least one enabled timer
  * intended for use with the PWM upper half driver.
  *
- * It implements support for both:
+ * It implements support for:
  *   1. STM32 TIMER IP version 1 - F0, F1, F2, F37x, F4, L0, L1
  *   2. STM32 TIMER IP version 2 - F3 (no F37x), F7, H7, L4, L4+
+ *   3. STM32 TIMER IP version 3 - C5 (TIM2)
  */
 
 #ifdef CONFIG_STM32_PWM
@@ -176,6 +177,12 @@
 #  define TIMEN_TIM19      RCC_APB2ENR_TIM19EN
 #  define TIMRCCRST_TIM19  STM32_RCC_APB2RSTR
 #  define TIMRST_TIM19     RCC_APB2RSTR_TIM19RST
+#elif defined(CONFIG_ARCH_CHIP_STM32C5)
+#  define TIMCLK_TIM2      STM32_TIM2_CLKIN
+#  define TIMRCCEN_TIM2    STM32_RCC_APB1LENR
+#  define TIMEN_TIM2       RCC_APB1LENR_TIM2EN
+#  define TIMRCCRST_TIM2   STM32_RCC_APB1LRSTR
+#  define TIMRST_TIM2      RCC_APB1LRSTR_TIM2RST
 #else
 #  define TIMCLK_TIM1      STM32_TIM1_CLKIN
 #  define TIMRCCEN_TIM1    STM32_RCC_APB2ENR
@@ -264,7 +271,8 @@
     defined(CONFIG_STM32_STM32F37XX) ||           \
     defined(CONFIG_STM32_STM32F4XXX) ||           \
     defined(CONFIG_STM32_STM32L15XX) ||           \
-    defined(CONFIG_STM32_STM32G4XXX)
+    defined(CONFIG_STM32_STM32G4XXX) ||           \
+    defined(CONFIG_ARCH_CHIP_STM32C5)
 #  define PINCFG_DEFAULT (GPIO_INPUT | GPIO_FLOAT)
 #else
 #  error "Unrecognized STM32 chip"

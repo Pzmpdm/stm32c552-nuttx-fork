@@ -28,6 +28,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <errno.h>
 #include <nuttx/board.h>
 #include <nuttx/debug.h>
 #include <nuttx/input/buttons.h>
@@ -36,6 +37,10 @@
 #include <arch/board/board.h>
 
 #include "board_common.h"
+
+#if defined(CONFIG_PWM) && defined(CONFIG_STM32_TIM2_PWM)
+#  include "stm32_pwm.h"
+#endif
 
 #ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
 #  include "arm_internal.h"
@@ -159,6 +164,9 @@ void stm32_board_initialize(void)
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
 void board_late_initialize(void)
 {
+#if defined(CONFIG_PWM) && defined(CONFIG_STM32_TIM2_PWM)
+  struct pwm_lowerhalf_s *pwm;
+#endif
   int ret = stm32_common_initialize();
 
   if (ret < 0)
@@ -179,6 +187,15 @@ void board_late_initialize(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_PWM) && defined(CONFIG_STM32_TIM2_PWM)
+  pwm = stm32_pwminitialize(2);
+  ret = pwm == NULL ? -ENODEV : pwm_register("/dev/pwm0", pwm);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: TIM2 PWM initialization failed: %d\n", ret);
     }
 #endif
 }

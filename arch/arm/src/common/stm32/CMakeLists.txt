@@ -76,6 +76,10 @@ if(CONFIG_STM32_HAVE_IP_EXTI_M33_V1)
   list(APPEND SRCS stm32_exti_gpio_m33_v1.c)
 endif()
 
+if(CONFIG_ARCH_CHIP_STM32C5 AND CONFIG_STM32_PWM)
+  list(APPEND SRCS stm32_pwm_m3m4_v1v2v3.c)
+endif()
+
 if(CONFIG_STM32_COMMON_M33)
   list(APPEND SRCS stm32_allocateheap_m33_v1.c stm32_irq_m33_v1.c
        stm32_start_m33_v1.c)

@@ -87,6 +87,10 @@ ifeq ($(CONFIG_STM32_HAVE_IP_EXTI_M33_V1),y)
 CHIP_CSRCS += stm32_exti_gpio_m33_v1.c
 endif
 
+ifeq ($(CONFIG_ARCH_CHIP_STM32C5)$(CONFIG_STM32_PWM),yy)
+CHIP_CSRCS += stm32_pwm_m3m4_v1v2v3.c
+endif
+
 ifeq ($(CONFIG_STM32_COMMON_M33),y)
 CHIP_CSRCS += stm32_allocateheap_m33_v1.c
 CHIP_CSRCS += stm32_irq_m33_v1.c

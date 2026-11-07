@@ -49,10 +49,18 @@
 #define STM32_PCLK2_FREQUENCY        STM32_HCLK_FREQUENCY
 #define STM32_PCLK3_FREQUENCY        STM32_HCLK_FREQUENCY
 
+/* APB1 is undivided, so TIM2 uses the same rate as PCLK1. */
+
+#define STM32_TIM2_CLKIN             STM32_PCLK1_FREQUENCY
+
 /* H4 pin 4: PA9 TX; H4 pin 6: PA10 RX.  Both use AF7. */
 
 #define GPIO_USART1_TX               GPIO_USART1_TX_2
 #define GPIO_USART1_RX               GPIO_USART1_RX_2
+
+/* H2 pin 3: PA0 TIM2_CH1 output, AF1. */
+
+#define GPIO_TIM2_CH1OUT             GPIO_TIM2_CH1OUT_1
 
 /* LED2 and SW2 are both active low. */
 
