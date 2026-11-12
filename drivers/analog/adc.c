@@ -164,7 +164,10 @@ static int adc_open(FAR struct file *filep)
 
           /* Save the new open count on success */
 
-          dev->ad_ocount = tmp;
+          if (ret == OK)
+            {
+              dev->ad_ocount = tmp;
+            }
         }
 
       nxmutex_unlock(&dev->ad_lock);
