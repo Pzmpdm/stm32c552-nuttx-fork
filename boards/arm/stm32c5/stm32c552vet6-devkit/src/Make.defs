@@ -33,4 +33,8 @@ ifeq ($(CONFIG_STM32_ADC1)$(CONFIG_ADC),yy)
 CSRCS += stm32_adc.c
 endif
 
+ifeq ($(CONFIG_STM32C552VET6_DEVKIT_LPDMA_SELFTEST),y)
+CSRCS += stm32_lpdmacheck.c
+endif
+
 VPATH += :board

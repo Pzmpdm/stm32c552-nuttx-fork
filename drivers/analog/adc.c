@@ -475,9 +475,14 @@ static int adc_reset(FAR struct adc_dev_s *dev)
 
   dev->ad_isovr = true;
 
-  /* No need to notify here. The adc_receive callback will be called next.
-   * If an ADC overrun occurs then there must be at least one conversion.
+  /* A failed DMA block may have no sample to deliver.  Wake a reader
+   * so it can return the error even when the FIFO is empty.
    */
+
+  if (dev->ad_recv.af_head == dev->ad_recv.af_tail)
+    {
+      adc_notify(dev);
+    }
 
   return OK;
 }
@@ -660,7 +665,7 @@ static int adc_poll(FAR struct file *filep, FAR struct pollfd_s *fds,
 
       /* Should we immediately notify on any of the requested events? */
 
-      if (dev->ad_recv.af_head != dev->ad_recv.af_tail)
+      if (dev->ad_recv.af_head != dev->ad_recv.af_tail || dev->ad_isovr)
         {
           poll_notify(&fds, 1, POLLIN);
         }

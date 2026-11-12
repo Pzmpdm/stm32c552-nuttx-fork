@@ -128,6 +128,10 @@ extern "C"
 int stm32_adc_setup(void);
 #endif
 
+#ifdef CONFIG_STM32C552VET6_DEVKIT_LPDMA_SELFTEST
+void stm32_lpdmacheck(void);
+#endif
+
 void stm32_board_clockconfig(void);
 void stm32_board_initialize(void);
 

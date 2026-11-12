@@ -11,3 +11,10 @@ config STM32C552VET6_DEVKIT_HSE_CLOCK
 		Use HSE as the 8 MHz reference for the 144 MHz PSI system clock.
 		Fall back to the 144 MHz internal HSIS clock if HSE or PSI fails
 		to start.  The default board clock is the 48 MHz reset clock.
+
+config STM32C552VET6_DEVKIT_LPDMA_SELFTEST
+	bool "Run LPDMA memory self-test at startup"
+	depends on STM32_HAVE_IP_DMA_LPDMA && STM32_DMA1 && STM32_DMA2
+	---help---
+		Test single-block copies and completion interrupts on all channels.
+		Enable this in diagnostic configurations.

@@ -30,4 +30,8 @@ if(CONFIG_STM32_ADC1 AND CONFIG_ADC)
   target_sources(board PRIVATE stm32_adc.c)
 endif()
 
+if(CONFIG_STM32C552VET6_DEVKIT_LPDMA_SELFTEST)
+  target_sources(board PRIVATE stm32_lpdmacheck.c)
+endif()
+
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

@@ -26,6 +26,10 @@ if(CONFIG_STM32_ADC1)
   list(APPEND SRCS stm32_adc.c)
 endif()
 
+if(CONFIG_STM32_HAVE_IP_DMA_LPDMA AND CONFIG_STM32_DMA)
+  list(APPEND SRCS stm32_lpdma.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})
 
 add_subdirectory(${NUTTX_DIR}/arch/arm/src/common/stm32 stm32_common)

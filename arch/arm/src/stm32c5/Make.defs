@@ -36,3 +36,7 @@ CHIP_CSRCS += stm32_rcc.c stm32c5xx_rcc.c
 ifeq ($(CONFIG_STM32_ADC1),y)
 CHIP_CSRCS += stm32_adc.c
 endif
+
+ifeq ($(CONFIG_STM32_HAVE_IP_DMA_LPDMA)$(CONFIG_STM32_DMA),yy)
+CHIP_CSRCS += stm32_lpdma.c
+endif

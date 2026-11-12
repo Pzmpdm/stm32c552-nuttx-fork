@@ -13,7 +13,7 @@ config STM32_C5_PERIPHERALS
 	select ARCH_HAVE_FPU
 	select STM32_HAVE_DMA1
 	select STM32_HAVE_DMA2
-	select STM32_HAVE_IP_DMA_GPDMA
+	select STM32_HAVE_IP_DMA_GPDMA if !ARCH_CHIP_STM32C552VE
 	select STM32_HAVE_IP_EXTI_M33_V1
 	select STM32_HAVE_IP_GPIO_M33_V1
 	select STM32_HAVE_IP_SPI_V5
@@ -45,6 +45,13 @@ config STM32_C5_PERIPHERALS
 	select STM32_HAVE_TIM2_32BITS
 	select STM32_HAVE_TIM5_32BITS
 
+config STM32C5_ADC1_LPDMA
+	bool "Use LPDMA1 for ADC1 four-sample blocks"
+	depends on STM32_HAVE_IP_DMA_LPDMA && STM32_ADC1 && STM32_DMA1 && ADC
+	---help---
+		A software trigger captures four consecutive samples of one input.
+		The trigger waits for DMA completion with a bounded timeout.
+
 choice
 	prompt "STM32 C5 Chip Selection"
 	default ARCH_CHIP_STM32C562RE
@@ -53,6 +60,7 @@ choice
 config ARCH_CHIP_STM32C552VE
 	bool "STM32C552VE"
 	select STM32_HAVE_ADC1
+	select STM32_HAVE_IP_DMA_LPDMA
 	select STM32_FLASH_CONFIG_E
 	select STM32C5_IO_CONFIG_V
 	---help---

@@ -40,6 +40,14 @@
 #include "hardware/stm32c5xx_adc.h"
 #include "hardware/stm32_rcc.h"
 
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+#  include <nuttx/clock.h>
+#  include <nuttx/mutex.h>
+#  include <nuttx/semaphore.h>
+#  include "stm32_lpdma.h"
+#  include "hardware/stm32_dmasigmap.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -55,6 +63,13 @@
 
 #define ADC_WAIT_US 1000
 
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+#  define ADC_DMA_SAMPLES 4
+#  if CONFIG_ADC_FIFOSIZE <= ADC_DMA_SAMPLES
+#    error "ADC FIFO must hold an entire DMA block"
+#  endif
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -65,6 +80,9 @@ struct stm32_adc_s
   uint8_t channel;
   bool active;
   bool rxenabled;
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  struct stm32_lpdma_s *dma;
+#endif
 };
 
 /****************************************************************************
@@ -92,6 +110,13 @@ static const struct adc_ops_s g_adcops =
   .ao_rxint = adc_rxint,
   .ao_ioctl = adc_ioctl,
 };
+
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+static uint32_t g_dma_samples[ADC_DMA_SAMPLES];
+static sem_t g_dma_done = SEM_INITIALIZER(0);
+static mutex_t g_dma_lock = NXMUTEX_INITIALIZER;
+static volatile int g_dma_result;
+#endif
 
 static struct stm32_adc_s g_adcpriv;
 static struct adc_dev_s g_adcdev =
@@ -142,6 +167,19 @@ static int adc_bind(struct adc_dev_s *dev,
   return OK;
 }
 
+static bool adc_stop_conversion(void)
+{
+  if ((getreg32(STM32_ADC1_BASE + STM32_ADC_CR_OFFSET) &
+       ADC_CR_ADSTART) == 0)
+    {
+      return true;
+    }
+
+  putreg32(ADC_CR_ADVREGEN | ADC_CR_ADSTP,
+           STM32_ADC1_BASE + STM32_ADC_CR_OFFSET);
+  return adc_wait(STM32_ADC_CR_OFFSET, ADC_CR_ADSTART | ADC_CR_ADSTP, 0);
+}
+
 static void adc_reset(struct adc_dev_s *dev)
 {
   struct stm32_adc_s *priv = dev->ad_priv;
@@ -151,8 +189,15 @@ static void adc_reset(struct adc_dev_s *dev)
   adc_hwreset();
   putreg32(ADC_CR_DEEPPWD, STM32_ADC1_BASE + STM32_ADC_CR_OFFSET);
   modifyreg32(STM32_RCC_AHB2ENR, RCC_AHB2ENR_ADC12EN, 0);
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  if (priv->dma != NULL && stm32_lpdma_free(priv->dma) == OK)
+    {
+      priv->dma = NULL;
+    }
+#endif
 }
 
+#ifndef CONFIG_STM32C5_ADC1_LPDMA
 static int adc_interrupt(int irq, void *context, void *arg)
 {
   struct adc_dev_s *dev = arg;
@@ -182,12 +227,154 @@ static int adc_interrupt(int irq, void *context, void *arg)
   return OK;
 }
 
+#endif
+
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+static void adc_dma_complete(void *arg, int result)
+{
+  g_dma_result = result;
+  nxsem_post(&g_dma_done);
+}
+
+static int adc_dma_trigger(struct adc_dev_s *dev)
+{
+  struct stm32_adc_s *priv = dev->ad_priv;
+  struct stm32_lpdma_config_s cfg =
+  {
+    .source = STM32_ADC1_BASE + STM32_ADC_DR_OFFSET,
+    .destination = (uintptr_t)g_dma_samples,
+    .nbytes = sizeof(g_dma_samples),
+    .request = LPDMA_REQ_ADC1,
+    .width = sizeof(g_dma_samples[0]),
+    .dstinc = true,
+  };
+
+  uint8_t channels[ADC_DMA_SAMPLES];
+  irqstate_t flags;
+  unsigned int i;
+  int ret;
+
+  ret = nxmutex_lock(&g_dma_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!priv->active || !priv->rxenabled || priv->cb == NULL ||
+      priv->cb->au_receive_batch == NULL)
+    {
+      ret = -EIO;
+      goto error;
+    }
+
+  if ((getreg32(STM32_ADC1_BASE + STM32_ADC_CR_OFFSET) &
+       ADC_CR_ADSTART) != 0)
+    {
+      ret = -EBUSY;
+      goto error;
+    }
+
+  /* Arm DMA before generating the first ADC request.  Wait in task context
+   * for one four-rank sequence, so a missing request cannot block forever.
+   */
+
+  putreg32(ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR,
+           STM32_ADC1_BASE + STM32_ADC_ISR_OFFSET);
+  nxsem_reset(&g_dma_done, 0);
+  ret = stm32_lpdma_start(priv->dma, &cfg, adc_dma_complete, NULL);
+  if (ret < 0)
+    {
+      goto error;
+    }
+
+  putreg32(ADC_CFGR1_DMA_ONESHOT, STM32_ADC1_BASE + STM32_ADC_CFGR1_OFFSET);
+  putreg32(ADC_CR_ADVREGEN | ADC_CR_ADSTART,
+           STM32_ADC1_BASE + STM32_ADC_CR_OFFSET);
+  ret = nxsem_tickwait_uninterruptible(&g_dma_done, MSEC2TICK(100));
+  if (ret == OK)
+    {
+      ret = g_dma_result;
+    }
+
+  if (ret == OK && !adc_wait(STM32_ADC_CR_OFFSET, ADC_CR_ADSTART, 0))
+    {
+      ret = -ETIMEDOUT;
+    }
+
+  if (ret == OK && (getreg32(STM32_ADC1_BASE + STM32_ADC_ISR_OFFSET) &
+                    ADC_ISR_OVR) != 0)
+    {
+      ret = -EIO;
+    }
+
+  if (ret < 0)
+    {
+      if (!adc_stop_conversion() || stm32_lpdma_stop(priv->dma) < 0)
+        {
+          adc_reset(dev);
+        }
+      else
+        {
+          putreg32(0, STM32_ADC1_BASE + STM32_ADC_CFGR1_OFFSET);
+          putreg32(ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR,
+                   STM32_ADC1_BASE + STM32_ADC_ISR_OFFSET);
+        }
+
+      goto error;
+    }
+
+  putreg32(0, STM32_ADC1_BASE + STM32_ADC_CFGR1_OFFSET);
+  putreg32(ADC_ISR_EOS, STM32_ADC1_BASE + STM32_ADC_ISR_OFFSET);
+  for (i = 0; i < ADC_DMA_SAMPLES; i++)
+    {
+      channels[i] = priv->channel;
+    }
+
+  flags = enter_critical_section();
+  ret = priv->cb->au_receive_batch(dev, channels, g_dma_samples,
+                                   ADC_DMA_SAMPLES);
+  leave_critical_section(flags);
+  if (ret == OK)
+    {
+      nxmutex_unlock(&g_dma_lock);
+      return OK;
+    }
+
+error:
+  if (priv->cb != NULL && priv->cb->au_reset != NULL)
+    {
+      flags = enter_critical_section();
+      priv->cb->au_reset(dev);
+      leave_critical_section(flags);
+    }
+
+  nxmutex_unlock(&g_dma_lock);
+  return ret;
+}
+#endif
+
 static int adc_setup(struct adc_dev_s *dev)
 {
   struct stm32_adc_s *priv = dev->ad_priv;
   unsigned int smpr;
   unsigned int shift;
+  uint32_t sequence;
   int ret;
+
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  unsigned int rank;
+
+  if (priv->dma != NULL)
+    {
+      ret = stm32_lpdma_free(priv->dma);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      priv->dma = NULL;
+    }
+#endif
 
   modifyreg32(STM32_RCC_CCIPR2,
               RCC_CCIPR2_ADCDACSEL_MASK | RCC_CCIPR2_ADCDACPRE_MASK,
@@ -214,11 +401,18 @@ static int adc_setup(struct adc_dev_s *dev)
 
   up_udelay(4);
 
-  /* Single-ended, 12-bit, right aligned, software-triggered, one shot.
-   * No DMA, oversampling, injected group or dual ADC mode.
-   */
+  /* Single-ended, 12-bit, right aligned, software-triggered, one shot. */
 
   putreg32(0, STM32_ADC1_BASE + STM32_ADC_CFGR1_OFFSET);
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  sequence = ADC_DMA_SAMPLES - 1;
+  for (rank = 0; rank < ADC_DMA_SAMPLES; rank++)
+    {
+      sequence |= (uint32_t)priv->channel << (ADC_SQR1_SQ1_SHIFT + 6 * rank);
+    }
+#else
+  sequence = (uint32_t)priv->channel << ADC_SQR1_SQ1_SHIFT;
+#endif
   putreg32(0, STM32_ADC1_BASE + STM32_ADC_CFGR2_OFFSET);
   putreg32(0, STM32_ADC12_COMMON_BASE + STM32_ADC_CCR_OFFSET);
   putreg32(1u << priv->channel, STM32_ADC1_BASE + STM32_ADC_PCSEL_OFFSET);
@@ -226,8 +420,7 @@ static int adc_setup(struct adc_dev_s *dev)
                              STM32_ADC_SMPR2_OFFSET;
   shift = (priv->channel % 10) * 3;
   putreg32(ADC_SAMPLE_48CYCLES << shift, STM32_ADC1_BASE + smpr);
-  putreg32((uint32_t)priv->channel << ADC_SQR1_SQ1_SHIFT,
-           STM32_ADC1_BASE + STM32_ADC_SQR1_OFFSET);
+  putreg32(sequence, STM32_ADC1_BASE + STM32_ADC_SQR1_OFFSET);
   putreg32(ADC_ISR_ADRDY | ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR,
            STM32_ADC1_BASE + STM32_ADC_ISR_OFFSET);
   putreg32(ADC_CR_ADVREGEN | ADC_CR_ADEN,
@@ -238,14 +431,23 @@ static int adc_setup(struct adc_dev_s *dev)
       goto errout;
     }
 
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  priv->dma = stm32_lpdma_alloc(1);
+  if (priv->dma == NULL)
+    {
+      ret = -EBUSY;
+      goto errout;
+    }
+#else
   ret = irq_attach(STM32_IRQ_ADC1, adc_interrupt, dev);
   if (ret < 0)
     {
       goto errout;
     }
 
-  priv->active = true;
   up_enable_irq(STM32_IRQ_ADC1);
+#endif
+  priv->active = true;
   return OK;
 
 errout:
@@ -256,25 +458,36 @@ errout:
 static void adc_shutdown(struct adc_dev_s *dev)
 {
   struct stm32_adc_s *priv = dev->ad_priv;
-  uint32_t control;
+
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  /* Error recovery may already have reset ADC1 and gated its clock. */
+
+  if (!priv->active)
+    {
+      return;
+    }
+#endif
 
   putreg32(0, STM32_ADC1_BASE + STM32_ADC_IER_OFFSET);
+#ifndef CONFIG_STM32C5_ADC1_LPDMA
   up_disable_irq(STM32_IRQ_ADC1);
   irq_detach(STM32_IRQ_ADC1);
+#endif
   priv->active = false;
   priv->rxenabled = false;
 
-  control = getreg32(STM32_ADC1_BASE + STM32_ADC_CR_OFFSET);
-  if ((control & ADC_CR_ADSTART) != 0)
+  if (!adc_stop_conversion())
     {
-      putreg32(ADC_CR_ADVREGEN | ADC_CR_ADSTP,
-               STM32_ADC1_BASE + STM32_ADC_CR_OFFSET);
-      if (!adc_wait(STM32_ADC_CR_OFFSET, ADC_CR_ADSTART | ADC_CR_ADSTP, 0))
-        {
-          adc_reset(dev);
-          return;
-        }
+      adc_reset(dev);
+      return;
     }
+
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+  if (priv->dma != NULL && stm32_lpdma_free(priv->dma) == OK)
+    {
+      priv->dma = NULL;
+    }
+#endif
 
   if ((getreg32(STM32_ADC1_BASE + STM32_ADC_CR_OFFSET) & ADC_CR_ADEN) != 0)
     {
@@ -297,19 +510,26 @@ static void adc_rxint(struct adc_dev_s *dev, bool enable)
   struct stm32_adc_s *priv = dev->ad_priv;
 
   priv->rxenabled = enable;
+#ifndef CONFIG_STM32C5_ADC1_LPDMA
   putreg32(enable ? ADC_IER_EOCIE | ADC_IER_OVRIE : 0,
            STM32_ADC1_BASE + STM32_ADC_IER_OFFSET);
+#endif
 }
 
 static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 {
+#ifndef CONFIG_STM32C5_ADC1_LPDMA
   struct stm32_adc_s *priv = dev->ad_priv;
   irqstate_t flags;
   int ret = OK;
+#endif
 
   switch (cmd)
     {
       case ANIOC_TRIGGER:
+#ifdef CONFIG_STM32C5_ADC1_LPDMA
+        return adc_dma_trigger(dev);
+#else
         flags = enter_critical_section();
         if (!priv->active || !priv->rxenabled)
           {
@@ -330,6 +550,7 @@ static int adc_ioctl(struct adc_dev_s *dev, int cmd, unsigned long arg)
 
         leave_critical_section(flags);
         return ret;
+#endif
 
       case ANIOC_GET_NCHANNELS:
         return 1;

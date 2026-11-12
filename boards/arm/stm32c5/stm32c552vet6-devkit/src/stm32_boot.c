@@ -172,6 +172,10 @@ void board_late_initialize(void)
 #endif
   int ret = stm32_common_initialize();
 
+#ifdef CONFIG_STM32C552VET6_DEVKIT_LPDMA_SELFTEST
+  stm32_lpdmacheck();
+#endif
+
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_common_initialize() failed: %d\n", ret);

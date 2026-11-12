@@ -55,6 +55,7 @@
 #define ADC_CR_ADVREGEN            (1u << 28)
 #define ADC_CR_DEEPPWD             (1u << 29)
 #define ADC_CR_ADCAL               (1u << 31)
+#define ADC_CFGR1_DMA_ONESHOT      (1u << 0)
 #define ADC_SQR1_SQ1_SHIFT         6
 #define ADC_SAMPLE_48CYCLES         5u
 #define ADC_DATA_MASK              0x0fff
