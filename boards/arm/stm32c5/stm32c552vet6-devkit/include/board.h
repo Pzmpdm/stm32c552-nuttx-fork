@@ -124,6 +124,10 @@ extern "C"
 {
 #endif
 
+#if defined(CONFIG_STM32_ADC1) && defined(CONFIG_ADC)
+int stm32_adc_setup(void);
+#endif
+
 void stm32_board_clockconfig(void);
 void stm32_board_initialize(void);
 

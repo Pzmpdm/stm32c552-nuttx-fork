@@ -193,6 +193,14 @@ void board_late_initialize(void)
     }
 #endif
 
+#if defined(CONFIG_STM32_ADC1) && defined(CONFIG_ADC)
+  ret = stm32_adc_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: ADC1 initialization failed: %d\n", ret);
+    }
+#endif
+
 #if defined(CONFIG_STM32_SPI1) && defined(CONFIG_SPI_DRIVER)
   ret = stm32_spi1_register();
   if (ret < 0)

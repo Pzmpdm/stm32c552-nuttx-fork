@@ -22,6 +22,10 @@
 
 set(SRCS stm32_rcc.c stm32c5xx_rcc.c)
 
+if(CONFIG_STM32_ADC1)
+  list(APPEND SRCS stm32_adc.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})
 
 add_subdirectory(${NUTTX_DIR}/arch/arm/src/common/stm32 stm32_common)

@@ -673,7 +673,7 @@ config STM32_ADC3_RESOLUTION
 
 config STM32_ADC_MAX_SAMPLES
 	int "The maximum number of channels that can be sampled"
-	depends on STM32_ADC
+	depends on STM32_ADC && !ARCH_CHIP_STM32C5
 	default 1 if STM32_HAVE_IP_ADC_M0_V1 && !STM32_ADC1_DMA
 	default 16
 	---help---
@@ -686,19 +686,19 @@ config STM32_ADC_MAX_SAMPLES
 
 config STM32_ADC_NO_STARTUP_CONV
 	bool "Do not start conversion when opening ADC device"
-	depends on STM32_ADC
+	depends on STM32_ADC && !ARCH_CHIP_STM32C5
 	---help---
 		Do not start conversion when opening ADC device.
 
 config STM32_ADC_NOIRQ
 	bool "Do not use default ADC interrupts"
-	depends on STM32_ADC
+	depends on STM32_ADC && !ARCH_CHIP_STM32C5
 	---help---
 		Do not use default ADC interrupts handlers.
 
 config STM32_ADC_LL_OPS
 	bool "ADC low-level operations"
-	depends on STM32_ADC
+	depends on STM32_ADC && !ARCH_CHIP_STM32C5
 	---help---
 		Enable low-level ADC ops.
 

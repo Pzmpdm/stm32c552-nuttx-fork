@@ -32,3 +32,7 @@ CHIP_ASRCS  =
 # STM32C5 family-specific files
 
 CHIP_CSRCS += stm32_rcc.c stm32c5xx_rcc.c
+
+ifeq ($(CONFIG_STM32_ADC1),y)
+CHIP_CSRCS += stm32_adc.c
+endif

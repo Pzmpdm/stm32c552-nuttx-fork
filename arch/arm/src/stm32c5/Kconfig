@@ -52,6 +52,7 @@ choice
 
 config ARCH_CHIP_STM32C552VE
 	bool "STM32C552VE"
+	select STM32_HAVE_ADC1
 	select STM32_FLASH_CONFIG_E
 	select STM32C5_IO_CONFIG_V
 	---help---
