@@ -87,7 +87,8 @@ static int lpdmacheck_copy(struct stm32_lpdma_s *chan,
 }
 
 static int lpdmacheck_instance(unsigned int instance, unsigned int count,
-                               uint32_t *source, uint32_t *destination)
+                               uint32_t *source, uint32_t *destination,
+                               bool *stopped)
 {
   struct stm32_lpdma_s *channels[8];
   struct stm32_lpdma_s *extra;
@@ -168,6 +169,7 @@ out:
 
       if (stop < 0)
         {
+          *stopped = false;
           ret = stop;
         }
     }
@@ -190,8 +192,6 @@ out:
  ****************************************************************************/
 
 #ifdef CONFIG_STM32_SRAM2_HEAP
-static volatile uint32_t g_release;
-
 static uint32_t *lpdma_take_sram2(void)
 {
   uint32_t *held[16];
@@ -230,6 +230,7 @@ static uint32_t *lpdma_take_sram2(void)
 
 void stm32_lpdmacheck(void)
 {
+  bool stopped = true;
 #ifdef CONFIG_STM32_SRAM2_HEAP
   struct mallinfo before;
   struct mallinfo after;
@@ -244,35 +245,34 @@ void stm32_lpdmacheck(void)
       return;
     }
 
-  ret = lpdmacheck_instance(1, 8, block, block + 32);
+  ret = lpdmacheck_instance(1, 8, block, block + 32, &stopped);
   if (ret == OK)
     {
-      ret = lpdmacheck_instance(2, 4, block, block + 32);
+      ret = lpdmacheck_instance(2, 4, block, block + 32, &stopped);
     }
 
   if (ret == OK)
     {
-      syslog(LOG_INFO, "LPDMA SRAM2 %08lx %08lx %08lx\n",
+      syslog(LOG_INFO, "LPDMA SRAM2 %08lx %08lx\n",
              (unsigned long)(uintptr_t)block,
-             (unsigned long)(uintptr_t)(block + 33),
-             (unsigned long)(uintptr_t)&g_release);
-      while (g_release == 0)
-        {
-        }
+             (unsigned long)(uintptr_t)(block + 33));
+    }
 
+  if (stopped)
+    {
       kmm_free(block);
+    }
+
+  if (ret == OK)
+    {
       after = mallinfo();
       syslog(LOG_INFO, "LPDMA SRAM2 released %d %d\n",
              before.fordblks, after.fordblks);
     }
-  else
-    {
-      kmm_free(block);
-    }
 #else
-  if (lpdmacheck_instance(1, 8, g_source, g_destination) == OK)
+  if (lpdmacheck_instance(1, 8, g_source, g_destination, &stopped) == OK)
     {
-      lpdmacheck_instance(2, 4, g_source, g_destination);
+      lpdmacheck_instance(2, 4, g_source, g_destination, &stopped);
     }
 #endif
 }
