@@ -2462,6 +2462,11 @@ static int stm32_i2c_process(struct i2c_master_s *dev,
     {
       /* Connection timed out */
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+      /* End the abandoned transaction before another caller can start. */
+
+      stm32_i2c_sendstop(priv);
+#endif
       errval = ETIMEDOUT;
       i2cerr("ERROR: Waitdone timed out CR1: 0x%08" PRIx32
              " CR2: 0x%08" PRIx32 " status: 0x%08" PRIx32 "\n",
