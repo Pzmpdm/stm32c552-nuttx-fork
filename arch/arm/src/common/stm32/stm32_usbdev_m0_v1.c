@@ -53,7 +53,11 @@
 #include "hardware/stm32_rcc.h"
 #include "hardware/stm32_usbdev.h"
 #include "stm32_gpio.h"
-#include "stm32_pwr.h"
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+#  include <arch/board/board.h>
+#else
+#  include "stm32_pwr.h"
+#endif
 #include "stm32_usbdev.h"
 
 #if defined(CONFIG_USBDEV) && defined(CONFIG_STM32_USB)
@@ -1582,6 +1586,15 @@ static int stm32_rdrequest(struct stm32_usbdev_s *priv,
   /* Get the source and destination transfer addresses */
 
   dest    = privreq->req.buf + privreq->req.xfrd;
+
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  /* ES0661: CTR can arrive before the last PMA count and bytes.
+   * Two microseconds covers the 800 ns full-speed wait.
+   */
+
+  up_udelay(2);
+#endif
+
   src     = stm32_geteprxaddr(epno);
 
   /* Get the number of bytes to read from packet memory */
@@ -1819,6 +1832,9 @@ static void stm32_ep0setup(struct stm32_usbdev_s *priv)
        * request
        */
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+      up_udelay(2);
+#endif
       stm32_copyfrompma((uint8_t *)&priv->ctrl, stm32_geteprxaddr(EP0),
                         USB_SIZEOF_CTRLREQ);
 
@@ -3861,10 +3877,16 @@ void arm_usbinitialize(void)
   stm32_configgpio(GPIO_USB_DP);
 #endif
 
-  /* Reset the USB peripheral */
+  /* Reset the USB peripheral and enable its bus clock. */
 
+#ifdef CONFIG_ARCH_CHIP_STM32C5
+  modifyreg32(STM32_RCC_APB2ENR, 0, RCC_APB2ENR_USBEN);
+  modifyreg32(STM32_RCC_APB2RSTR, 0, RCC_APB2RSTR_USBRST);
+  modifyreg32(STM32_RCC_APB2RSTR, RCC_APB2RSTR_USBRST, 0);
+#else
   modifyreg32(STM32_RCC_APB1RSTR, 0, RCC_APB1RSTR_USBRST);
   modifyreg32(STM32_RCC_APB1RSTR, RCC_APB1RSTR_USBRST, 0);
+#endif
 
   /* Power up the USB controller, but leave it in the reset state */
 

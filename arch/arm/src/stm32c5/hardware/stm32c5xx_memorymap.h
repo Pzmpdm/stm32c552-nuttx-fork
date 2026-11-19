@@ -116,6 +116,8 @@
 #define STM32_USB_DRD_RAM_BASE  STM32_USB_DRD_FS_RAM_BASE
 #define STM32_USB_FS_BASE       STM32_USB_DRD_FS_BASE
 #define STM32_USB_FS_RAM_BASE   STM32_USB_DRD_FS_RAM_BASE
+#define STM32_USB_BASE          STM32_USB_DRD_FS_BASE
+#define STM32_USBRAM_BASE       STM32_USB_DRD_FS_RAM_BASE
 
 /* AHB1 peripheral base addresses *******************************************/
 

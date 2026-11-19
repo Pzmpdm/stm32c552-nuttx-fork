@@ -33,6 +33,13 @@ if(CONFIG_STM32_HAVE_IP_SPI_V5 AND CONFIG_STM32_SPI)
   list(APPEND SRCS stm32_spi_v5.c)
 endif()
 
+# The M0 V2 device controller is also the C5 USB IP. C5 is Cortex-M33,
+# so this cannot stay inside the Cortex-M0 source list.
+if(CONFIG_STM32_USB AND (CONFIG_STM32_HAVE_IP_USBDEV_M0_V1
+                         OR CONFIG_STM32_HAVE_IP_USBDEV_M0_V2))
+  list(APPEND SRCS stm32_usbdev_m0_v1.c)
+endif()
+
 # Architecture-neutral sources used by every STM32 family
 
 list(APPEND SRCS stm32_waste.c)
@@ -470,11 +477,6 @@ if(CONFIG_ARCH_CORTEXM0)
 
   if(CONFIG_STM32_HAVE_HSI48)
     list(APPEND SRCS stm32_hsi48_m0_v1.c)
-  endif()
-
-  if(CONFIG_STM32_USB AND (CONFIG_STM32_HAVE_IP_USBDEV_M0_V1
-                           OR CONFIG_STM32_HAVE_IP_USBDEV_M0_V2))
-    list(APPEND SRCS stm32_usbdev_m0_v1.c)
   endif()
 
   if(CONFIG_STM32_I2C)

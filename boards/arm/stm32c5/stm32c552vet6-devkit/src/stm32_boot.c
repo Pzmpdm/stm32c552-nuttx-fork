@@ -33,19 +33,28 @@
 #include <nuttx/debug.h>
 #include <nuttx/input/buttons.h>
 #include <nuttx/leds/userled.h>
+#include <nuttx/usb/cdcacm.h>
+#include <nuttx/usb/usbdev.h>
 
 #include <arch/board/board.h>
 
 #include "board_common.h"
+#include "stm32_gpio.h"
+
+#if defined(CONFIG_STM32_USB) && defined(CONFIG_USBDEV)
+#  include "hardware/stm32_usbdev.h"
+#endif
 
 #if defined(CONFIG_PWM) && defined(CONFIG_STM32_TIM2_PWM)
 #  include "stm32_pwm.h"
 #endif
 
-#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+#if defined(CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK) || defined(CONFIG_STM32_USB)
 #  include "arm_internal.h"
-#  include "hardware/stm32_flash.h"
 #  include "hardware/stm32_rcc.h"
+#endif
+#ifdef CONFIG_STM32C552VET6_DEVKIT_HSE_CLOCK
+#  include "hardware/stm32_flash.h"
 #endif
 
 /****************************************************************************
@@ -197,8 +206,15 @@ void stm32_board_clockconfig(void)
       asm volatile ("wfi");
     }
 #else
-  /* HSIDIV3 already drives SYSCLK at 48 MHz from reset. */
+  /* HSIDIV3 already drives SYSCLK at 48 MHz from reset. The reset
+   * value also reports HSIDIV3 ready, so CK48 can latch that source.
+   * This still does not measure 48 MHz.
+   */
 
+#  ifdef CONFIG_STM32_USB
+  modifyreg32(STM32_RCC_CCIPR2, RCC_CCIPR2_CK48SEL_MASK,
+              RCC_CCIPR2_CK48SEL_HSIDIV3);
+#  endif
 #endif
 }
 
@@ -267,5 +283,43 @@ void board_late_initialize(void)
       syslog(LOG_ERR, "ERROR: TIM2 PWM initialization failed: %d\n", ret);
     }
 #endif
+
+#if defined(CONFIG_STM32_USB) && defined(CONFIG_CDCACM)
+  ret = cdcacm_initialize(0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: cdcacm_initialize failed: %d\n", ret);
+    }
+#endif
+}
+#endif
+
+#if defined(CONFIG_STM32_USB) && defined(CONFIG_USBDEV)
+int stm32_usbpullup(struct usbdev_s *dev, bool enable)
+{
+  irqstate_t flags;
+  uint32_t regval;
+
+  UNUSED(dev);
+  flags = enter_critical_section();
+  regval = getreg32(STM32_USB_BCDR);
+  if (enable)
+    {
+      regval |= USB_BCDR_DPPU;
+    }
+  else
+    {
+      regval &= ~USB_BCDR_DPPU;
+    }
+
+  putreg32(regval, STM32_USB_BCDR);
+  leave_critical_section(flags);
+  return OK;
+}
+
+void stm32_usbsuspend(struct usbdev_s *dev, bool resume)
+{
+  UNUSED(dev);
+  UNUSED(resume);
 }
 #endif

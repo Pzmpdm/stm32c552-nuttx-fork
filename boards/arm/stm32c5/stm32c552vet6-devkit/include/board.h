@@ -113,6 +113,11 @@
 #define STM32_SPI1_FREQUENCY STM32_PCLK2_FREQUENCY
 #define STM32_SPI_CLK_MAX    24000000UL
 
+/* USB FS pins are PA11/PA12. The transceiver owns them while USB is on. */
+
+#define GPIO_USB_DM                  GPIO_USB_DM_1
+#define GPIO_USB_DP                  GPIO_USB_DP_1
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/

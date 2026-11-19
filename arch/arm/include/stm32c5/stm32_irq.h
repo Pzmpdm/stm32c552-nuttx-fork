@@ -128,6 +128,7 @@
 #define STM32_IRQ_TIM16         (STM32_IRQ_FIRST + 60)
 #define STM32_IRQ_TIM17         (STM32_IRQ_FIRST + 61)
 #define STM32_IRQ_USB_DRD_FS    (STM32_IRQ_FIRST + 62)
+#define STM32_IRQ_USB           STM32_IRQ_USB_DRD_FS
 #define STM32_IRQ_CRS           (STM32_IRQ_FIRST + 63)
 #define STM32_IRQ_RNG           (STM32_IRQ_FIRST + 64)
 #define STM32_IRQ_FPU           (STM32_IRQ_FIRST + 65)
