@@ -28,9 +28,12 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <nuttx/clock.h>
+#include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
 
 #include "stm32_lpdma.h"
@@ -39,10 +42,14 @@
  * Private Data
  ****************************************************************************/
 
-/* Static endpoints remain valid even if hardware fails to stop. */
+/* Static endpoints remain valid even if hardware fails to stop.
+ * The SRAM2 heap build allocates these instead, then frees them.
+ */
 
+#ifndef CONFIG_STM32_SRAM2_HEAP
 static uint32_t g_source[32];
 static uint32_t g_destination[34];
+#endif
 static sem_t g_completion = SEM_INITIALIZER(0);
 static volatile int g_result;
 
@@ -79,7 +86,8 @@ static int lpdmacheck_copy(struct stm32_lpdma_s *chan,
   return g_result;
 }
 
-static int lpdmacheck_instance(unsigned int instance, unsigned int count)
+static int lpdmacheck_instance(unsigned int instance, unsigned int count,
+                               uint32_t *source, uint32_t *destination)
 {
   struct stm32_lpdma_s *channels[8];
   struct stm32_lpdma_s *extra;
@@ -106,8 +114,8 @@ static int lpdmacheck_instance(unsigned int instance, unsigned int count)
       goto out;
     }
 
-  cfg.source = (uintptr_t)g_source;
-  cfg.destination = (uintptr_t)&g_destination[1];
+  cfg.source = (uintptr_t)source;
+  cfg.destination = (uintptr_t)&destination[1];
   cfg.request = LPDMA_SOFTWARE_REQUEST;
   cfg.srcinc = true;
   cfg.dstinc = true;
@@ -119,18 +127,18 @@ static int lpdmacheck_instance(unsigned int instance, unsigned int count)
       goto out;
     }
 
-  cfg.nbytes = sizeof(g_source);
+  cfg.nbytes = 32 * sizeof(uint32_t);
   for (i = 0; i < count; i++)
     {
       unsigned int j;
 
       cfg.width = 1u << (i % 3);
-      for (j = 0; j < sizeof(g_source) / sizeof(g_source[0]); j++)
+      for (j = 0; j < 32; j++)
         {
-          g_source[j] = 0x13579bdfu ^ (0x01020307u * j) ^ (i << 16);
+          source[j] = 0x13579bdfu ^ (0x01020307u * j) ^ (i << 16);
         }
 
-      memset(g_destination, 0xa5, sizeof(g_destination));
+      memset(destination, 0xa5, 34 * sizeof(uint32_t));
       ret = lpdmacheck_copy(channels[i], &cfg);
       if (ret == -EIO || ret == -ETIMEDOUT)
         {
@@ -144,9 +152,9 @@ static int lpdmacheck_instance(unsigned int instance, unsigned int count)
           goto out;
         }
 
-      if (memcmp(g_source, &g_destination[1], sizeof(g_source)) != 0 ||
-          g_destination[0] != 0xa5a5a5a5u ||
-          g_destination[33] != 0xa5a5a5a5u)
+      if (memcmp(source, &destination[1], 32 * sizeof(uint32_t)) != 0 ||
+          destination[0] != 0xa5a5a5a5u ||
+          destination[33] != 0xa5a5a5a5u)
         {
           ret = -EIO;
           goto out;
@@ -181,10 +189,90 @@ out:
  * Public Functions
  ****************************************************************************/
 
+#ifdef CONFIG_STM32_SRAM2_HEAP
+static volatile uint32_t g_release;
+
+static uint32_t *lpdma_take_sram2(void)
+{
+  uint32_t *held[16];
+  uint32_t *block = NULL;
+  unsigned int n = 0;
+  unsigned int i;
+
+  while (n < 16 && block == NULL)
+    {
+      uint32_t *chunk = kmm_malloc(4096);
+
+      if (chunk == NULL)
+        {
+          break;
+        }
+
+      if ((uintptr_t)chunk >= 0x20010000 &&
+          (uintptr_t)chunk + 4096 <= 0x20020000)
+        {
+          block = chunk;
+        }
+      else
+        {
+          held[n++] = chunk;
+        }
+    }
+
+  for (i = 0; i < n; i++)
+    {
+      kmm_free(held[i]);
+    }
+
+  return block;
+}
+#endif
+
 void stm32_lpdmacheck(void)
 {
-  if (lpdmacheck_instance(1, 8) == OK)
+#ifdef CONFIG_STM32_SRAM2_HEAP
+  struct mallinfo before;
+  struct mallinfo after;
+  uint32_t *block;
+  int ret;
+
+  before = mallinfo();
+  block = lpdma_take_sram2();
+  if (block == NULL)
     {
-      lpdmacheck_instance(2, 4);
+      syslog(LOG_ERR, "LPDMA SRAM2 alloc failed\n");
+      return;
     }
+
+  ret = lpdmacheck_instance(1, 8, block, block + 32);
+  if (ret == OK)
+    {
+      ret = lpdmacheck_instance(2, 4, block, block + 32);
+    }
+
+  if (ret == OK)
+    {
+      syslog(LOG_INFO, "LPDMA SRAM2 %08lx %08lx %08lx\n",
+             (unsigned long)(uintptr_t)block,
+             (unsigned long)(uintptr_t)(block + 33),
+             (unsigned long)(uintptr_t)&g_release);
+      while (g_release == 0)
+        {
+        }
+
+      kmm_free(block);
+      after = mallinfo();
+      syslog(LOG_INFO, "LPDMA SRAM2 released %d %d\n",
+             before.fordblks, after.fordblks);
+    }
+  else
+    {
+      kmm_free(block);
+    }
+#else
+  if (lpdmacheck_instance(1, 8, g_source, g_destination) == OK)
+    {
+      lpdmacheck_instance(2, 4, g_source, g_destination);
+    }
+#endif
 }
