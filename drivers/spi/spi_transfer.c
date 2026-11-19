@@ -134,9 +134,17 @@ int spi_transfer(FAR struct spi_dev_s *spi, FAR struct spi_sequence_s *seq)
 
       SPI_SELECT(spi, seq->dev, true);
 
-      /* Perform the transfer */
+      /* Perform the transfer. A polling controller that cannot return
+       * from exchange() reports a stuck FIFO with ETIMEDOUT.
+       */
 
+      set_errno(0);
       SPI_EXCHANGE(spi, trans->txbuffer, trans->rxbuffer, trans->nwords);
+      if (get_errno() == ETIMEDOUT)
+        {
+          ret = -ETIMEDOUT;
+          break;
+        }
 
       /* Possibly de-select the SPI device after the transfer */
 

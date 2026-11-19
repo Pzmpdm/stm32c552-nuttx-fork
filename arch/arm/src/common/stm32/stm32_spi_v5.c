@@ -1030,6 +1030,39 @@ static void spi_modifyreg(struct stm32_spidev_s *priv, uint32_t offset,
  *
  ****************************************************************************/
 
+/* shortcut: exchange() is void, so a stuck status poll sets ETIMEDOUT
+ * for spi_transfer(). The spin bound is not a bit time.
+ */
+
+#define SPI_POLL_SPINS 1000
+
+static bool spi_wait(struct stm32_spidev_s *priv, uint32_t mask)
+{
+  unsigned int left = SPI_POLL_SPINS;
+  const char *text = "SPI poll timeout\n";
+
+  if (get_errno() == ETIMEDOUT)
+    {
+      return false;
+    }
+
+  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & mask) == 0)
+    {
+      if (left-- == 0)
+        {
+          set_errno(ETIMEDOUT);
+          while (*text != '\0')
+            {
+              up_putc(*text++);
+            }
+
+          return false;
+        }
+    }
+
+  return true;
+}
+
 static inline uint32_t spi_readword(struct stm32_spidev_s *priv)
 {
   /* Can't receive in tx only mode */
@@ -1041,7 +1074,10 @@ static inline uint32_t spi_readword(struct stm32_spidev_s *priv)
 
   /* Wait until the receive buffer is not empty */
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_RXP) == 0);
+  if (!spi_wait(priv, SPI_SR_RXP))
+    {
+      return 0;
+    }
 
   /* Then return the received 16 bit word */
 
@@ -1075,7 +1111,10 @@ static inline void spi_writeword(struct stm32_spidev_s *priv,
 
   /* Wait until the transmit buffer is empty */
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_TXP) == 0);
+  if (!spi_wait(priv, SPI_SR_TXP))
+    {
+      return;
+    }
 
   /* Then send the 16 bit word */
 
@@ -1107,7 +1146,10 @@ static inline uint8_t spi_readbyte(struct stm32_spidev_s *priv)
 
   /* Wait until the receive buffer is not empty */
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_RXP) == 0);
+  if (!spi_wait(priv, SPI_SR_RXP))
+    {
+      return 0;
+    }
 
   /* Then return the received byte */
 
@@ -1141,7 +1183,10 @@ static inline void spi_writebyte(struct stm32_spidev_s *priv,
 
   /* Wait until the transmit buffer is empty */
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_TXP) == 0);
+  if (!spi_wait(priv, SPI_SR_TXP))
+    {
+      return;
+    }
 
   /* Then send the byte */
 
@@ -1163,7 +1208,11 @@ static inline uint32_t spi_readdword(struct stm32_spidev_s *priv)
       return 0;
     }
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_RXP) == 0);
+  if (!spi_wait(priv, SPI_SR_RXP))
+    {
+      return 0;
+    }
+
   return spi_getreg(priv, STM32_SPI_RXDR_OFFSET);
 }
 
@@ -1174,7 +1223,11 @@ static inline void spi_writedword(struct stm32_spidev_s *priv, uint32_t word)
       return;
     }
 
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_TXP) == 0);
+  if (!spi_wait(priv, SPI_SR_TXP))
+    {
+      return;
+    }
+
   spi_putreg(priv, STM32_SPI_TXDR_OFFSET, word);
 }
 
@@ -2002,6 +2055,7 @@ static uint32_t spi_send(struct spi_dev_s *dev, uint32_t wd)
   uint32_t ret    = 0;
 
   DEBUGASSERT(priv && priv->spibase);
+  set_errno(0);
 
   /* Clear suspend flag */
 
@@ -2042,7 +2096,7 @@ static uint32_t spi_send(struct spi_dev_s *dev, uint32_t wd)
   /* Suspend */
 
   spi_modifyreg(priv, STM32_SPI_CR1_OFFSET, 0, SPI_CR1_CSUSP);
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_SUSP) == 0);
+  spi_wait(priv, SPI_SR_SUSP);
 
   /* Dump some info */
 
@@ -2089,6 +2143,7 @@ static void spi_exchange_nodma(struct spi_dev_s *dev,
   struct stm32_spidev_s *priv = (struct stm32_spidev_s *)dev;
 
   DEBUGASSERT(priv && priv->spibase);
+  set_errno(0);
 
   spiinfo("txbuffer=%p rxbuffer=%p nwords=%d\n", txbuffer, rxbuffer, nwords);
 
@@ -2273,7 +2328,7 @@ static void spi_exchange_nodma(struct spi_dev_s *dev,
   /* Suspend */
 
   spi_modifyreg(priv, STM32_SPI_CR1_OFFSET, 0, SPI_CR1_CSUSP);
-  while ((spi_getreg(priv, STM32_SPI_SR_OFFSET) & SPI_SR_SUSP) == 0);
+  spi_wait(priv, SPI_SR_SUSP);
 }
 
 /****************************************************************************
