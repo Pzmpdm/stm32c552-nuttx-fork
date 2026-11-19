@@ -123,6 +123,43 @@ static bool stm32_try_hsis(void)
   modifyreg32(STM32_RCC_CR1, RCC_CR1_PSISON | RCC_CR1_HSEON, 0);
   return true;
 }
+
+/* Latch CK48SEL only after the matching divider-ready bit. HSE stays out
+ * of this choice: it is 8 MHz. The bit is not a measurement of 48 MHz.
+ */
+
+static bool stm32_select_ck48(uint32_t enable, uint32_t ready, uint32_t sel)
+{
+  modifyreg32(STM32_RCC_CR1, 0, enable);
+  if (!stm32_wait_clockreg(STM32_RCC_CR1, ready, ready))
+    {
+      return false;
+    }
+
+  modifyreg32(STM32_RCC_CCIPR2, RCC_CCIPR2_CK48SEL_MASK, sel);
+  return stm32_wait_clockreg(STM32_RCC_CCIPR2, RCC_CCIPR2_CK48SEL_MASK, sel);
+}
+
+static void stm32_config_ck48(bool psi_ready)
+{
+  if (psi_ready)
+    {
+      if (stm32_select_ck48(RCC_CR1_PSIDIV3ON, RCC_CR1_PSIDIV3RDY,
+                            RCC_CCIPR2_CK48SEL_PSIDIV3))
+        {
+          return;
+        }
+
+      stm32_select_ck48(RCC_CR1_HSIDIV3ON, RCC_CR1_HSIDIV3RDY,
+                        RCC_CCIPR2_CK48SEL_HSIDIV3);
+    }
+  else if (!stm32_select_ck48(RCC_CR1_HSIDIV3ON, RCC_CR1_HSIDIV3RDY,
+                              RCC_CCIPR2_CK48SEL_HSIDIV3))
+    {
+      stm32_select_ck48(RCC_CR1_PSIDIV3ON, RCC_CR1_PSIDIV3RDY,
+                        RCC_CCIPR2_CK48SEL_PSIDIV3);
+    }
+}
 #endif
 
 /****************************************************************************
@@ -136,10 +173,19 @@ void stm32_board_clockconfig(void)
 
   modifyreg32(STM32_FLASH_ACR, FLASH_CLOCK_MASK, FLASH_CLOCK_144MHZ);
   if (stm32_wait_clockreg(STM32_FLASH_ACR, FLASH_CLOCK_MASK,
-                          FLASH_CLOCK_144MHZ) &&
-      (stm32_try_hse_psi() || stm32_try_hsis()))
+                          FLASH_CLOCK_144MHZ))
     {
-      return;
+      if (stm32_try_hse_psi())
+        {
+          stm32_config_ck48(true);
+          return;
+        }
+
+      if (stm32_try_hsis())
+        {
+          stm32_config_ck48(false);
+          return;
+        }
     }
 
   /* Neither 144 MHz path is safe.  Starting with the wrong rate would
