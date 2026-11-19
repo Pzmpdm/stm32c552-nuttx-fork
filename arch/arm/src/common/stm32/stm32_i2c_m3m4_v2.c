@@ -258,7 +258,6 @@
 #  if STM32_PCLK1_FREQUENCY != 48000000 && STM32_PCLK1_FREQUENCY != 144000000
 #    error STM32C5 I2C timing requires 48 MHz or 144 MHz PCLK1
 #  endif
-/* shortcut: TIMINGR stays the 48 MHz table at 144 MHz PCLK, replace when SCL is scaled */
 #  define I2C_RCC_ENR   STM32_RCC_APB1LENR
 #  define I2C_RCC_RSTR  STM32_RCC_APB1LRSTR
 #elif defined(CONFIG_STM32_STM32F30XX) || defined(CONFIG_STM32_STM32F33XX) || \

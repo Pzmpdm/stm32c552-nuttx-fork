@@ -70,12 +70,14 @@
 #define GPIO_I2C1_SDA                (GPIO_I2C1_SDA_2 | GPIO_OPENDRAIN | \
                                      GPIO_SPEED_50MHZ)
 
-/* 48 MHz PCLK1, analog/digital filters off.  Conservative TIMINGR values
- * for rise <= 300 ns and fall <= 100 ns.  Actual SCL must be measured.
+/* Keep the TIMINGR counter at 16 MHz for both PCLK1 settings.  Filters
+ * are off and the timings assume rise <= 300 ns and fall <= 100 ns.
  */
 
-#define STM32_I2C_TIMINGR_100KHZ     0x20814f4ful
-#define STM32_I2C_TIMINGR_400KHZ     0x20611214ul
+#define STM32_I2C_TIMINGR_PRESC     \
+  (((STM32_PCLK1_FREQUENCY / 16000000ul) - 1ul) << 28)
+#define STM32_I2C_TIMINGR_100KHZ     (STM32_I2C_TIMINGR_PRESC | 0x00814f4ful)
+#define STM32_I2C_TIMINGR_400KHZ     (STM32_I2C_TIMINGR_PRESC | 0x00611214ul)
 
 /* H2 pin 3: PA0 TIM2_CH1 output, AF1. */
 
