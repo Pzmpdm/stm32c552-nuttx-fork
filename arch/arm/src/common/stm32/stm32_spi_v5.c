@@ -78,6 +78,9 @@
 
 #if defined(CONFIG_STM32_STM32H50XXX)
 #  define SPI_MAX_KER_CK 250000000
+#elif defined(CONFIG_ARCH_CHIP_STM32C5)
+/* shortcut: shared non-H5 cap is 125 MHz, raise when a divided C5 kernel source is selected */
+#  define SPI_MAX_KER_CK 144000000
 #else
 #  define SPI_MAX_KER_CK 125000000
 #endif

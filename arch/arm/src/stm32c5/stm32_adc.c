@@ -52,11 +52,15 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#if STM32_HCLK_FREQUENCY != 48000000
-#  error "Initial C5 ADC support requires a 48 MHz HCLK"
+#if STM32_HCLK_FREQUENCY == 48000000
+#  define ADC_KERNEL_PRE  2 /* HCLK / 4 = 12 MHz */
+#elif STM32_HCLK_FREQUENCY == 144000000
+#  define ADC_KERNEL_PRE  4 /* HCLK / 16 = 9 MHz; PRE(n) divides by 2^n */
+#else
+#  error "C5 ADC kernel divider is only set for 48 MHz and 144 MHz HCLK"
 #endif
 
-/* HCLK / 4 = 12 MHz.  The post-calibration delay covers four ADC clocks.
+/* The post-calibration delay covers four ADC clocks.
  * ao_setup runs inside the upper half's critical section.  Its waits use
  * bounded busy delays and do not depend on the scheduler or system tick.
  */
@@ -378,7 +382,7 @@ static int adc_setup(struct adc_dev_s *dev)
 
   modifyreg32(STM32_RCC_CCIPR2,
               RCC_CCIPR2_ADCDACSEL_MASK | RCC_CCIPR2_ADCDACPRE_MASK,
-              RCC_CCIPR2_ADCDACSEL_HCLK | RCC_CCIPR2_ADCDACPRE(2));
+              RCC_CCIPR2_ADCDACSEL_HCLK | RCC_CCIPR2_ADCDACPRE(ADC_KERNEL_PRE));
   adc_hwreset();
 
   /* Exit deep power down and wait for the regulator before calibration. */
