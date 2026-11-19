@@ -47,6 +47,15 @@ CHIP_CSRCS += stm32_waste.c
 CHIP_CSRCS += stm32_uid.c
 CHIP_CSRCS += stm32_lsi.c
 
+# The M0 V2 device controller is also the C5 USB IP. C5 is Cortex-M33,
+# so this cannot stay inside the Cortex-M0 source list.
+ifeq ($(CONFIG_STM32_USB),y)
+ifneq ($(filter y,$(CONFIG_STM32_HAVE_IP_USBDEV_M0_V1) \
+            $(CONFIG_STM32_HAVE_IP_USBDEV_M0_V2)),)
+CHIP_CSRCS += stm32_usbdev_m0_v1.c
+endif
+endif
+
 ifneq ($(CONFIG_SCHED_TICKLESS),y)
 ifeq ($(CONFIG_ARCH_ARMV6M),y)
 CHIP_CSRCS += stm32_timerisr_armv6m.c
@@ -521,13 +530,6 @@ endif
 
 ifeq ($(CONFIG_STM32_HAVE_HSI48),y)
 CHIP_CSRCS += stm32_hsi48_m0_v1.c
-endif
-
-ifeq ($(CONFIG_STM32_USB),y)
-ifneq ($(filter y,$(CONFIG_STM32_HAVE_IP_USBDEV_M0_V1) \
-            $(CONFIG_STM32_HAVE_IP_USBDEV_M0_V2)),)
-CHIP_CSRCS += stm32_usbdev_m0_v1.c
-endif
 endif
 
 ifeq ($(CONFIG_STM32_I2C),y)
